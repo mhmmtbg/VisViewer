@@ -313,7 +313,7 @@ function updateTitle() {
   const name = App.doc ? App.doc.name : 'Dosya açılmadı';
   $('#fileName').textContent = name + (App.dirty ? ' •' : '');
   document.title = (App.doc ? name + (App.dirty ? ' *' : '') + ' — ' : '') + 'VisViewer';
-  $('#btnSave').disabled = !App.doc; $('#btnSaveAs').disabled = !App.doc;
+  $('#btnSave').disabled = !App.doc || App.readOnly; $('#btnSaveAs').disabled = !App.doc || App.readOnly;
 }
 
 /* ---------- mini harita ---------- */
@@ -454,14 +454,24 @@ async function renderRecent() {
 }
 
 /* ---------- dosya işlemleri ---------- */
-const VSDX_TYPES = [{ description: 'Visio çizimi', accept: { 'application/vnd.ms-visio.drawing': ['.vsdx', '.vsdm'], 'application/octet-stream': ['.vsdx', '.vsdm'] } }];
+const VSDX_TYPES = [{ description: 'Visio çizimi', accept: { 'application/vnd.ms-visio.drawing': ['.vsdx', '.vsdm'], 'application/octet-stream': ['.vsdx', '.vsdm', '.vsd'] } }];
 
 async function loadBuffer(buf, name, handle) {
   try {
     toast('Dosya açılıyor…');
+    let legacy = null;
+    const head = new Uint8Array(buf, 0, Math.min(8, buf.byteLength));
+    if (VSDImport.isCfb(head)) {
+      const r = await VSDImport.toVsdx(new Uint8Array(buf));
+      buf = r.zip.buffer.slice(r.zip.byteOffset, r.zip.byteOffset + r.zip.byteLength);
+      legacy = r;
+    }
     const doc = await VDoc.load(buf, name);
-    App.doc = doc; App.fileHandle = handle || null;
-    if (handle) Recent.add(doc.name, handle);
+    App.readOnly = !!legacy;
+    if (legacy) { doc.name = name.replace(/\.vsd$/i, '') + '.vsd'; doc.note('uyarı', 'Eski .vsd biçimi yalnızca görüntülenir; çizim yaklaşık olarak yeniden oluşturulur (EMF/WMF resimler, bazı eğriler ve özel dolgular görünmeyebilir).'); for (const t of legacy.issues) doc.note('uyarı', t); }
+    setTool(App.readOnly ? 'hand' : 'select');
+    App.doc = doc; App.fileHandle = legacy ? null : (handle || null);
+    if (handle && !legacy) Recent.add(doc.name, handle);
     History.clear();
     App.dirty = false;
     App.hiddenLayers = new Set();
@@ -472,7 +482,7 @@ async function loadBuffer(buf, name, handle) {
     openPage(doc.pages.findIndex((p) => !p.background) >= 0 ? doc.pages.findIndex((p) => !p.background) : 0);
     renderInspector();
     const shapes = App.page.nodeMap.size;
-    toast(`${name} açıldı · ${doc.pages.length} sayfa`);
+    toast(`${name} açıldı · ${doc.pages.length} sayfa` + (App.readOnly ? ' · salt okunur (.vsd)' : ''));
     updateUndoButtons();
   } catch (err) {
     console.error(err);
@@ -506,6 +516,7 @@ function download(bytesOrStr, name, mime) {
 
 async function saveFile(saveAs) {
   if (!App.doc) return;
+  if (App.readOnly) { toast('Eski .vsd dosyaları yalnızca görüntülenir; kaydetme kapalı. PNG/SVG dışa aktarabilirsiniz.'); return; }
   endTextEdit(true);
   try {
     const bytes = await App.doc.serialize();
@@ -526,7 +537,7 @@ async function saveFile(saveAs) {
         return;
       } catch (e) { if (e && e.name === 'AbortError') return; }
     }
-    const base = App.doc.name.replace(/\.(vsdx|vsdm)$/i, '');
+    const base = App.doc.name.replace(/\.(vsdx|vsdm|vsd)$/i, '');
     const name = /_duzenlendi$/.test(base) ? base + '.vsdx' : base + '_duzenlendi.vsdx';
     download(bytes, name, 'application/vnd.ms-visio.drawing');
     App.dirty = false; updateTitle();
@@ -550,13 +561,13 @@ async function exportPNG() {
   g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
   g.drawImage(img, 0, 0, c.width, c.height);
   URL.revokeObjectURL(url);
-  c.toBlob((b) => download(b, App.doc.name.replace(/\.(vsdx|vsdm)$/i, '') + '_' + App.page.name + '.png', 'image/png'), 'image/png');
+  c.toBlob((b) => download(b, App.doc.name.replace(/\.(vsdx|vsdm|vsd)$/i, '') + '_' + App.page.name + '.png', 'image/png'), 'image/png');
 }
 function exportSVG() {
   if (!App.doc) return;
   const svg = '<?xml version="1.0" encoding="UTF-8"?>\n' + pageToSVGString(App.doc, App.page, { scale: 96 });
   App.doc.buildTree(App.page);
-  download(svg, App.doc.name.replace(/\.(vsdx|vsdm)$/i, '') + '_' + App.page.name + '.svg', 'image/svg+xml');
+  download(svg, App.doc.name.replace(/\.(vsdx|vsdm|vsd)$/i, '') + '_' + App.page.name + '.svg', 'image/svg+xml');
 }
 
 /* ---------- örnek / boş belge ---------- */
@@ -636,7 +647,7 @@ const SHORTCUTS = [
 function showHelp() {
   const d = $('#helpDialog');
   $('#helpBody').innerHTML = `<table class="keys">${SHORTCUTS.map(([k, t]) => `<tr><td><kbd>${esc(k)}</kbd></td><td>${esc(t)}</td></tr>`).join('')}</table>
-  <p class="muted">Not: Eski ikili <b>.vsd</b> biçimi desteklenmez; Visio'da "Farklı kaydet → Visio Çizimi (*.vsdx)" yapın. Kaydedilen dosyada yalnızca değiştirdiğiniz şekillerin hücreleri güncellenir, geri kalan her şey olduğu gibi korunur.</p>`;
+  <p class="muted">Not: Eski ikili <b>.vsd</b> dosyaları yalnızca görüntülenir (düzenleme ve kaydetme kapalı). Kaydedilen dosyada yalnızca değiştirdiğiniz şekillerin hücreleri güncellenir, geri kalan her şey olduğu gibi korunur.</p>`;
   d.style.display = 'flex';
 }
 

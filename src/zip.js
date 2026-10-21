@@ -37,7 +37,7 @@ function parseZip(buf) {
   for (let i = u8.length - 22; i >= minPos; i--) {
     if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
   }
-  if (eocd < 0) throw new Error('Geçerli bir VSDX/ZIP dosyası değil. (Eski ikili .vsd biçimi desteklenmez; Visio\'da "Farklı kaydet → .vsdx" yapın.)');
+  if (eocd < 0) throw new Error('Geçerli bir VSDX/ZIP dosyası değil.');
   const count = dv.getUint16(eocd + 10, true);
   const cdOff = dv.getUint32(eocd + 16, true);
   if (cdOff === 0xFFFFFFFF || count === 0xFFFF) throw new Error('ZIP64 biçimi desteklenmiyor.');

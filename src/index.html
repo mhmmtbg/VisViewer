@@ -74,14 +74,14 @@
       <div id="dropzone">
         <div class="card">
           <h1>Visio dosyasını açın</h1>
-          <p>.vsdx ve .vsdm dosyalarını görüntüleyin, şekilleri taşıyın, boyutlandırın, metin ve renkleri düzenleyin. Dosyalar bilgisayarınızdan çıkmaz; her şey tarayıcıda çalışır.</p>
+          <p>.vsdx ve .vsdm dosyalarını görüntüleyin (.vsd yalnızca görüntüleme), şekilleri taşıyın, boyutlandırın, metin ve renkleri düzenleyin. Dosyalar bilgisayarınızdan çıkmaz; her şey tarayıcıda çalışır.</p>
           <div class="actions">
             <button class="ib primary" id="btnOpen2" data-icon="open"><span>Dosya seç</span></button>
             <button class="ib" id="btnSample" data-icon="file"><span>Örnek çizim</span></button>
             <button class="ib" id="btnBlank" data-icon="plus"><span>Boş çizim</span></button>
           </div>
           <div id="recent"></div>
-          <p class="fine">Dosyayı bu pencereye sürükleyip bırakabilirsiniz. Eski ikili .vsd biçimi desteklenmez; Visio'da “Farklı kaydet → .vsdx” yapın.</p>
+          <p class="fine">Dosyayı bu pencereye sürükleyip bırakabilirsiniz. Eski .vsd dosyaları da açılır, ancak yalnızca görüntüleme içindir.</p>
         </div>
       </div>
       <div id="minimap" class="floating" style="display:none">
@@ -105,7 +105,7 @@
 </div>
 
 <div id="helpDialog"><div class="box"><button class="btn" id="helpClose">Kapat</button><h3>VisViewer — kısayollar</h3><div id="helpBody"></div></div></div>
-<input type="file" id="filePick" accept=".vsdx,.vsdm" style="display:none">
+<input type="file" id="filePick" accept=".vsdx,.vsdm,.vsd" style="display:none">
 
 <script>
 /*@JS@*/

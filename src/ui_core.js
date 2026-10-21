@@ -11,7 +11,7 @@ const App = {
   view: { x: 40, y: 40, z: 1 },
   snap: true, grid: true, units: 'mm',
   hiddenLayers: new Set(),
-  fileHandle: null, dirty: false,
+  fileHandle: null, dirty: false, readOnly: false,
   space: false, hover: null,
   clip: null,
   minimap: true,
@@ -528,6 +528,7 @@ function onStageWheel(e) {
 /* ---------- metin düzenleme ---------- */
 let textEditor = null;
 function startTextEdit(id) {
+  if (App.readOnly) return;
   const n = App.page.nodeMap.get(id);
   if (!n) return;
   endTextEdit(true);
@@ -568,6 +569,7 @@ function endTextEdit(commit) {
 
 /* ---------- araçlar ---------- */
 function setTool(t) {
+  if (App.readOnly) t = 'hand';
   App.tool = t;
   $$('#toolbar [data-tool]').forEach((b) => b.classList.toggle('active', b.dataset.tool === t));
   const cur = { select: 'default', hand: 'grab', rect: 'crosshair', rounded: 'crosshair', ellipse: 'crosshair', diamond: 'crosshair', text: 'text', conn: 'crosshair', elbow: 'crosshair' }[t] || 'default';
@@ -614,6 +616,7 @@ function copySelection(cut) {
   if (cut) deleteSelection();
 }
 function pasteClipboard(offset) {
+  if (App.readOnly) return;
   if (!App.clip) return;
   History.push(App.doc, App.page);
   const counter = { n: nextShapeId(App.page) };
@@ -638,6 +641,7 @@ function pasteClipboard(offset) {
   App.clip.xml = App.clip.xml; // aynı kopya art arda yapıştırılabilir
 }
 function duplicateSelection() {
+  if (App.readOnly) return;
   const nodes = selNodes().filter((n) => !n.parent);
   if (!nodes.length) return;
   History.push(App.doc, App.page);

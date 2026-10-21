@@ -11,7 +11,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, "src")
-JS_ORDER = ["zip.js", "model.js", "render.js", "edit.js", "ui_core.js", "ui_panels.js"]
+JS_ORDER = ["zip.js", "vsd.js", "model.js", "render.js", "edit.js", "ui_core.js", "ui_panels.js"]
 
 
 def read(p):

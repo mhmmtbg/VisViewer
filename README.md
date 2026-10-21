@@ -29,7 +29,7 @@ Kaydederken **orijinal XML korunur**: yalnızca değiştirdiğiniz şekillerin i
 
 ## Sınırlar (dürüst liste)
 
-- **Eski `.vsd` (ikili) biçimi desteklenmez.** Visio'da "Farklı kaydet → Visio Çizimi (*.vsdx)" yapın.
+- **Eski `.vsd` (ikili) dosyalar yalnızca görüntülenir** (Visio 4/5, 2000, 2003+). Düzenleme ve kaydetme kapalıdır; PNG/SVG dışa aktarılabilir. Çizim yeniden oluşturulur, bu yüzden EMF/WMF resimler (yer tutucu çizilir), desenli dolgular ve bazı alan biçimleri (birimli sayılar) birebir görünmeyebilir. Ayrıştırıcı bağımsız yazılmıştır (`src/vsd.js`, libvisio biçim bilgisine dayanır) ve libvisio'nun herkese açık test dosyalarıyla denenmiştir.
 - Karmaşık stencil geometrileri, tema efektleri, gölgeler, desenli dolgular ve bazı eğriler (spline) **yaklaşık** gösterilir; ayrıntılar sağ paneldeki "Görüntüleme notları"nda listelenir.
 - Gömülü EMF/WMF/OLE nesneleri gösterilemez (yer tutucu çizilir) ama dosyada korunur.
 - Bir şekle bağlı bağlayıcı yeniden çizildiğinde (şekil taşınınca) bağlayıcının geometrisi **sabit değerlerle** yeniden yazılır; Visio'da şekli oynatınca Visio kendi yönlendirmesiyle yeniden hesaplar. Bağlayıcı uçlarını elle başka şekle taşıma henüz yok.
