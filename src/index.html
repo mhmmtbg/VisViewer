@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VisViewer</title>
+<style>
+/*@CSS@*/
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="4" width="8" height="6" rx="1.5"/><rect x="13" y="14" width="8" height="6" rx="1.5"/><path d="M7 10v4h6M17 14v-4"/></svg>
+      VisViewer
+    </div>
+    <div class="sep"></div>
+    <button class="ib" id="btnOpen" data-icon="open" title="Dosya aç (Ctrl+O)"><span>Aç</span></button>
+    <button class="ib" id="btnSave" data-icon="save" title="Kaydet (Ctrl+S)"><span>Kaydet</span></button>
+    <button class="ib icon-only" id="btnSaveAs" data-icon="saveas" title="Farklı kaydet (Ctrl+Shift+S)"></button>
+    <div class="sep"></div>
+    <button class="ib icon-only" id="btnUndo" data-icon="undo" title="Geri al (Ctrl+Z)"></button>
+    <button class="ib icon-only" id="btnRedo" data-icon="redo" title="Yinele (Ctrl+Y)"></button>
+    <div class="sep"></div>
+    <button class="ib" id="btnPng" data-icon="image" title="Sayfayı PNG olarak dışa aktar"><span>PNG</span></button>
+    <button class="ib" id="btnSvg" data-icon="file" title="Sayfayı SVG olarak dışa aktar"><span>SVG</span></button>
+    <div id="fileName">Dosya açılmadı</div>
+    <div class="spacer"></div>
+    <div id="searchBox">
+      <span data-icon="search"></span>
+      <input id="searchInput" type="search" placeholder="Şekil / metin ara (Ctrl+F)" autocomplete="off">
+      <div id="searchResults"></div>
+    </div>
+    <button class="ib icon-only" id="btnTheme" data-icon="theme" title="Açık / koyu tema"></button>
+    <button class="ib icon-only" id="btnHelp" data-icon="help" title="Kısayollar ve yardım"></button>
+  </header>
+
+  <div id="toolbar">
+    <button class="tb" data-tool="select" data-icon="select" title="Seç (V)"></button>
+    <button class="tb" data-tool="hand" data-icon="hand" title="El — kaydır (H)"></button>
+    <div class="sep"></div>
+    <button class="tb" data-tool="rect" data-icon="rect" title="Dikdörtgen (R)"></button>
+    <button class="tb" data-tool="rounded" data-icon="rounded" title="Yuvarlak köşeli"></button>
+    <button class="tb" data-tool="ellipse" data-icon="ellipse" title="Elips (O)"></button>
+    <button class="tb" data-tool="diamond" data-icon="diamond" title="Eşkenar dörtgen (D)"></button>
+    <button class="tb" data-tool="text" data-icon="text" title="Metin (T)"></button>
+    <div class="sep"></div>
+    <button class="tb" data-tool="conn" data-icon="conn" title="Düz bağlayıcı — şekilden şekle sürükleyin (C)"></button>
+    <button class="tb" data-tool="elbow" data-icon="elbow" title="Dik açılı bağlayıcı"></button>
+    <div class="spacer"></div>
+    <button class="tb" id="zoomOut" data-icon="zoomout" title="Uzaklaştır (−)"></button>
+    <span id="zoomLabel">100%</span>
+    <button class="tb" id="zoomIn" data-icon="zoomin" title="Yakınlaştır (+)"></button>
+    <button class="tb" id="zoomFit" data-icon="fit" title="Sayfaya sığdır (F)"></button>
+    <button class="tb" id="zoomSel" title="Seçime yakınlaş"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="8" y="8" width="8" height="8"/><path d="M3 8V3h5M21 8V3h-5M3 16v5h5M21 16v5h-5"/></svg></button>
+  </div>
+
+  <main id="main">
+    <aside id="left">
+      <div id="leftTabs">
+        <button data-panel="pPages" class="active">Sayfalar</button>
+        <button data-panel="pShapes">Şekiller</button>
+        <button data-panel="pLayers">Katmanlar</button>
+      </div>
+      <div id="pPages" class="lpanel"><div id="pageList"></div></div>
+      <div id="pShapes" class="lpanel" style="display:none"><div id="shapeTree"></div></div>
+      <div id="pLayers" class="lpanel" style="display:none"><div id="layerList"></div></div>
+    </aside>
+
+    <section id="stage">
+      <svg id="pageSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+      <svg id="overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div id="dropzone">
+        <div class="card">
+          <h1>Visio dosyasını açın</h1>
+          <p>.vsdx ve .vsdm dosyalarını görüntüleyin, şekilleri taşıyın, boyutlandırın, metin ve renkleri düzenleyin. Dosyalar bilgisayarınızdan çıkmaz; her şey tarayıcıda çalışır.</p>
+          <div class="actions">
+            <button class="ib primary" id="btnOpen2" data-icon="open"><span>Dosya seç</span></button>
+            <button class="ib" id="btnSample" data-icon="file"><span>Örnek çizim</span></button>
+            <button class="ib" id="btnBlank" data-icon="plus"><span>Boş çizim</span></button>
+          </div>
+          <div id="recent"></div>
+          <p class="fine">Dosyayı bu pencereye sürükleyip bırakabilirsiniz. Eski ikili .vsd biçimi desteklenmez; Visio'da “Farklı kaydet → .vsdx” yapın.</p>
+        </div>
+      </div>
+      <div id="minimap" class="floating" style="display:none">
+        <div id="mmBox"><div id="mmPage"></div><div id="mmVp"></div></div>
+      </div>
+      <div id="toast"></div>
+    </section>
+
+    <aside id="right"><div id="inspector"></div></aside>
+  </main>
+
+  <footer id="status">
+    <span id="selInfo"></span>
+    <span class="spacer"></span>
+    <span id="coords"></span>
+    <label><input type="checkbox" id="chkSnap" checked> Izgaraya yapış</label>
+    <label><input type="checkbox" id="chkGrid" checked> Izgara</label>
+    <label><input type="checkbox" id="chkMini" checked> Mini harita</label>
+    <select id="unitSel" title="Ölçü birimi"><option value="mm" selected>mm</option><option value="cm">cm</option><option value="in">inç</option></select>
+  </footer>
+</div>
+
+<div id="helpDialog"><div class="box"><button class="btn" id="helpClose">Kapat</button><h3>VisViewer — kısayollar</h3><div id="helpBody"></div></div></div>
+<input type="file" id="filePick" accept=".vsdx,.vsdm" style="display:none">
+
+<script>
+/*@JS@*/
+</script>
+</body>
+</html>

@@ -1,0 +1,3962 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VisViewer</title>
+<style>
+/* VisViewer — sade, düz görünüm: gölge, parlama (glow) ve buzlu cam efekti yok. */
+:root {
+  --bg: #f3f4f6; --panel: #ffffff; --panel2: #f8f9fa; --border: #d8dce2; --text: #1c2029; --muted: #6a7280;
+  --accent: #2563d6; --accent-soft: #e3ecfb; --accent-text: #ffffff; --danger: #c0392b;
+  --stage: #e6e8ec; --page-edge: #b9bec7; --grid: #e3e6eb; --hover: #eef0f3; --input: #ffffff;
+  --font: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+:root[data-theme="dark"] {
+  --bg: #14161a; --panel: #1b1e24; --panel2: #20242b; --border: #2d323b; --text: #e5e8ee; --muted: #8d95a4;
+  --accent: #6aa0ff; --accent-soft: #23314d; --accent-text: #0e1626; --danger: #ff7b6b;
+  --stage: #101216; --page-edge: #3a404b; --hover: #262b33; --input: #14161a;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { font-family: var(--font); font-size: 13px; color: var(--text); background: var(--bg); overflow: hidden; }
+button, input, select, textarea { font-family: inherit; font-size: 13px; color: var(--text); }
+button { cursor: pointer; }
+button:disabled { opacity: .4; cursor: default; }
+kbd { font-family: inherit; border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; background: var(--panel2); font-size: 12px; }
+
+#app { display: grid; grid-template-rows: 48px 42px 1fr 28px; height: 100%; }
+
+/* üst çubuk */
+#topbar { display: flex; align-items: center; gap: 6px; padding: 0 10px; background: var(--panel); border-bottom: 1px solid var(--border); }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: .2px; margin-right: 6px; }
+.brand .logo { width: 22px; height: 22px; }
+#fileName { color: var(--muted); max-width: 26vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0 8px 0 4px; }
+.sep { width: 1px; height: 22px; background: var(--border); margin: 0 4px; }
+.spacer { flex: 1; }
+.ib { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 1px solid transparent; border-radius: 6px; background: transparent; }
+.ib:hover:not(:disabled) { background: var(--hover); }
+.ib.primary { background: var(--accent); color: var(--accent-text); }
+.ib.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
+.ib.icon-only { padding: 0 8px; }
+.ic { width: 18px; height: 18px; flex: none; }
+
+#searchBox { position: relative; }
+#searchInput { width: 220px; height: 32px; padding: 0 10px 0 30px; border: 1px solid var(--border); border-radius: 6px; background: var(--input); }
+#searchBox .ic { position: absolute; left: 8px; top: 7px; width: 16px; height: 16px; color: var(--muted); pointer-events: none; }
+#searchInput:focus, input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+#searchResults { display: none; position: absolute; right: 0; top: 36px; width: 340px; max-height: 340px; overflow: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; z-index: 30; }
+.sr { display: flex; justify-content: space-between; gap: 10px; padding: 7px 10px; cursor: pointer; border-bottom: 1px solid var(--border); }
+.sr:hover { background: var(--hover); }
+.sr span { color: var(--muted); white-space: nowrap; }
+.sr.none { color: var(--muted); cursor: default; }
+
+/* araç çubuğu */
+#toolbar { display: flex; align-items: center; gap: 2px; padding: 0 10px; background: var(--panel2); border-bottom: 1px solid var(--border); }
+.tb { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 30px; border: 1px solid transparent; border-radius: 6px; background: transparent; }
+.tb:hover { background: var(--hover); }
+.tb.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+#zoomLabel { min-width: 46px; text-align: center; color: var(--muted); }
+
+/* ana alan */
+#main { display: grid; grid-template-columns: 220px 1fr 292px; min-height: 0; }
+#left, #right { background: var(--panel); min-height: 0; display: flex; flex-direction: column; }
+#left { border-right: 1px solid var(--border); }
+#right { border-left: 1px solid var(--border); overflow-y: auto; }
+#leftTabs { display: flex; border-bottom: 1px solid var(--border); }
+#leftTabs button { flex: 1; height: 34px; border: 0; background: transparent; color: var(--muted); border-bottom: 2px solid transparent; }
+#leftTabs button.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+.lpanel { flex: 1; overflow: auto; min-height: 0; }
+.page-item { padding: 8px 10px; cursor: pointer; border-bottom: 1px solid var(--border); }
+.page-item:hover { background: var(--hover); }
+.page-item.active { background: var(--accent-soft); }
+.page-item .thumb { height: 92px; background: #fff; border: 1px solid var(--border); border-radius: 3px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.page-item .thumb svg { max-width: 100%; max-height: 100%; }
+.pname { margin-top: 5px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tnode { padding: 4px 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid transparent; }
+.tnode:hover { background: var(--hover); }
+.tnode.on { background: var(--accent-soft); }
+.tid { display: inline-block; min-width: 26px; color: var(--muted); font-size: 11px; margin-right: 6px; }
+.layer { display: flex; align-items: center; gap: 8px; padding: 6px 10px; }
+.muted { color: var(--muted); }
+.pad { padding: 10px; }
+
+/* sahne */
+#stage { position: relative; overflow: hidden; background: var(--stage); touch-action: none; user-select: none; }
+#stage.panning { cursor: grabbing !important; }
+#pageSvg, #overlay { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+#overlay { pointer-events: none; }
+#overlay .handle { fill: var(--panel); stroke: var(--accent); stroke-width: 1.5; pointer-events: all; }
+#overlay .handle.rot { fill: var(--accent); }
+#overlay .sel { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+#overlay .hov { fill: none; stroke: var(--accent); stroke-width: 1; opacity: .55; }
+#overlay .multi { fill: none; stroke: var(--accent); stroke-width: 1; stroke-dasharray: 5 3; }
+#overlay .rotline { stroke: var(--accent); stroke-width: 1; }
+#overlay .ghost { fill: var(--accent-soft); fill-opacity: .5; stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 5 3; }
+#overlay .marquee { fill: var(--accent); fill-opacity: .08; stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 3; }
+#textEditor { position: absolute; z-index: 20; resize: none; text-align: center; border: 2px solid var(--accent); border-radius: 3px; background: #fff; color: #000; padding: 4px; line-height: 1.25; }
+
+.floating { position: absolute; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; }
+#minimap { right: 12px; bottom: 12px; padding: 6px; }
+#mmBox { position: relative; cursor: pointer; display: inline-block; }
+#mmPage { background: #fff; border: 1px solid var(--border); overflow: hidden; }
+#mmPage svg { width: 100%; height: 100%; display: block; }
+#mmVp { position: absolute; border: 1.5px solid var(--accent); background: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); pointer-events: none; }
+
+#dropzone { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--stage); z-index: 5; }
+#dropzone.over .card { border-color: var(--accent); background: var(--accent-soft); }
+#dropzone .card { width: 520px; max-width: 90%; padding: 36px 32px; text-align: center; border: 2px dashed var(--border); border-radius: 12px; background: var(--panel); }
+#dropzone h1 { margin: 0 0 6px; font-size: 22px; }
+#dropzone p { margin: 6px 0 18px; color: var(--muted); line-height: 1.5; }
+#dropzone .actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+#dropzone .ib { border: 1px solid var(--border); height: 36px; padding: 0 14px; }
+#dropzone .ib.primary { border-color: var(--accent); }
+#dropzone .fine { margin: 18px 0 0; font-size: 12px; }
+.has-doc #dropzone { display: none; }
+
+#toast { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); max-width: 70%; padding: 9px 16px; border-radius: 6px; background: var(--text); color: var(--bg); opacity: 0; pointer-events: none; transition: opacity .15s; z-index: 40; }
+#toast.show { opacity: 1; }
+#toast.error { background: var(--danger); color: #fff; }
+#toast.warn { background: #b7791f; color: #fff; }
+
+/* özellikler paneli */
+.insp-head { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.sec { padding: 10px 14px 12px; border-bottom: 1px solid var(--border); }
+.sec h4 { margin: 0 0 8px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); }
+.sec h4 i { text-transform: none; font-style: normal; letter-spacing: 0; font-weight: 400; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.grid2 label, label.inl { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 12px; }
+label.inl { flex-direction: row; align-items: center; gap: 6px; }
+.sec input[type=number], .sec input:not([type]), .sec select, .sec textarea, .props input { width: 100%; height: 30px; padding: 0 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--input); }
+.sec textarea { height: auto; padding: 6px 8px; resize: vertical; }
+.sec input[type=color] { width: 38px; height: 30px; padding: 2px; border: 1px solid var(--border); border-radius: 5px; background: var(--input); }
+.row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.row.wrap { flex-wrap: wrap; }
+label.chk { display: flex; align-items: center; gap: 6px; color: var(--text); }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel2); }
+.btn:hover { background: var(--hover); }
+.btn.danger { color: var(--danger); }
+.btn.sm .ic { width: 16px; height: 16px; }
+.mini { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 30px; padding: 0 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel2); }
+.mini:hover { background: var(--hover); }
+.mini.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.mini .ic { width: 16px; height: 16px; }
+.props { width: 100%; border-collapse: collapse; }
+.props td { padding: 2px 0; }
+.props td:first-child { width: 42%; color: var(--muted); padding-right: 8px; }
+.kv { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; }
+.kv span { color: var(--muted); }
+.kv b { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+.notes { margin: 0; padding-left: 18px; line-height: 1.5; }
+.notes li.uyarı { color: var(--danger); }
+.tips { line-height: 1.7; }
+
+/* durum çubuğu */
+#status { display: flex; align-items: center; gap: 14px; padding: 0 12px; background: var(--panel); border-top: 1px solid var(--border); color: var(--muted); }
+#status label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+#status select { height: 22px; border: 1px solid var(--border); border-radius: 4px; background: var(--input); }
+#coords { min-width: 190px; }
+
+/* yardım penceresi */
+#helpDialog { display: none; position: fixed; inset: 0; align-items: center; justify-content: center; background: rgba(0,0,0,.4); z-index: 50; }
+#helpDialog .box { width: 560px; max-width: 92%; max-height: 86%; overflow: auto; padding: 20px 22px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+#helpDialog h3 { margin: 0 0 12px; }
+.keys { width: 100%; border-collapse: collapse; }
+.keys td { padding: 5px 0; border-bottom: 1px solid var(--border); }
+.keys td:first-child { width: 42%; }
+#helpClose { float: right; }
+
+#recent { margin-top: 20px; text-align: left; }
+.rec-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); margin-bottom: 6px; }
+.rec { display: flex; justify-content: space-between; gap: 12px; width: 100%; padding: 8px 10px; border: 0; border-bottom: 1px solid var(--border); background: transparent; text-align: left; }
+.rec:hover { background: var(--hover); }
+.rec span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec i { font-style: normal; color: var(--muted); white-space: nowrap; }
+
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="4" width="8" height="6" rx="1.5"/><rect x="13" y="14" width="8" height="6" rx="1.5"/><path d="M7 10v4h6M17 14v-4"/></svg>
+      VisViewer
+    </div>
+    <div class="sep"></div>
+    <button class="ib" id="btnOpen" data-icon="open" title="Dosya aç (Ctrl+O)"><span>Aç</span></button>
+    <button class="ib" id="btnSave" data-icon="save" title="Kaydet (Ctrl+S)"><span>Kaydet</span></button>
+    <button class="ib icon-only" id="btnSaveAs" data-icon="saveas" title="Farklı kaydet (Ctrl+Shift+S)"></button>
+    <div class="sep"></div>
+    <button class="ib icon-only" id="btnUndo" data-icon="undo" title="Geri al (Ctrl+Z)"></button>
+    <button class="ib icon-only" id="btnRedo" data-icon="redo" title="Yinele (Ctrl+Y)"></button>
+    <div class="sep"></div>
+    <button class="ib" id="btnPng" data-icon="image" title="Sayfayı PNG olarak dışa aktar"><span>PNG</span></button>
+    <button class="ib" id="btnSvg" data-icon="file" title="Sayfayı SVG olarak dışa aktar"><span>SVG</span></button>
+    <div id="fileName">Dosya açılmadı</div>
+    <div class="spacer"></div>
+    <div id="searchBox">
+      <span data-icon="search"></span>
+      <input id="searchInput" type="search" placeholder="Şekil / metin ara (Ctrl+F)" autocomplete="off">
+      <div id="searchResults"></div>
+    </div>
+    <button class="ib icon-only" id="btnTheme" data-icon="theme" title="Açık / koyu tema"></button>
+    <button class="ib icon-only" id="btnHelp" data-icon="help" title="Kısayollar ve yardım"></button>
+  </header>
+
+  <div id="toolbar">
+    <button class="tb" data-tool="select" data-icon="select" title="Seç (V)"></button>
+    <button class="tb" data-tool="hand" data-icon="hand" title="El — kaydır (H)"></button>
+    <div class="sep"></div>
+    <button class="tb" data-tool="rect" data-icon="rect" title="Dikdörtgen (R)"></button>
+    <button class="tb" data-tool="rounded" data-icon="rounded" title="Yuvarlak köşeli"></button>
+    <button class="tb" data-tool="ellipse" data-icon="ellipse" title="Elips (O)"></button>
+    <button class="tb" data-tool="diamond" data-icon="diamond" title="Eşkenar dörtgen (D)"></button>
+    <button class="tb" data-tool="text" data-icon="text" title="Metin (T)"></button>
+    <div class="sep"></div>
+    <button class="tb" data-tool="conn" data-icon="conn" title="Düz bağlayıcı — şekilden şekle sürükleyin (C)"></button>
+    <button class="tb" data-tool="elbow" data-icon="elbow" title="Dik açılı bağlayıcı"></button>
+    <div class="spacer"></div>
+    <button class="tb" id="zoomOut" data-icon="zoomout" title="Uzaklaştır (−)"></button>
+    <span id="zoomLabel">100%</span>
+    <button class="tb" id="zoomIn" data-icon="zoomin" title="Yakınlaştır (+)"></button>
+    <button class="tb" id="zoomFit" data-icon="fit" title="Sayfaya sığdır (F)"></button>
+    <button class="tb" id="zoomSel" title="Seçime yakınlaş"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="8" y="8" width="8" height="8"/><path d="M3 8V3h5M21 8V3h-5M3 16v5h5M21 16v5h-5"/></svg></button>
+  </div>
+
+  <main id="main">
+    <aside id="left">
+      <div id="leftTabs">
+        <button data-panel="pPages" class="active">Sayfalar</button>
+        <button data-panel="pShapes">Şekiller</button>
+        <button data-panel="pLayers">Katmanlar</button>
+      </div>
+      <div id="pPages" class="lpanel"><div id="pageList"></div></div>
+      <div id="pShapes" class="lpanel" style="display:none"><div id="shapeTree"></div></div>
+      <div id="pLayers" class="lpanel" style="display:none"><div id="layerList"></div></div>
+    </aside>
+
+    <section id="stage">
+      <svg id="pageSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+      <svg id="overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div id="dropzone">
+        <div class="card">
+          <h1>Visio dosyasını açın</h1>
+          <p>.vsdx ve .vsdm dosyalarını görüntüleyin, şekilleri taşıyın, boyutlandırın, metin ve renkleri düzenleyin. Dosyalar bilgisayarınızdan çıkmaz; her şey tarayıcıda çalışır.</p>
+          <div class="actions">
+            <button class="ib primary" id="btnOpen2" data-icon="open"><span>Dosya seç</span></button>
+            <button class="ib" id="btnSample" data-icon="file"><span>Örnek çizim</span></button>
+            <button class="ib" id="btnBlank" data-icon="plus"><span>Boş çizim</span></button>
+          </div>
+          <div id="recent"></div>
+          <p class="fine">Dosyayı bu pencereye sürükleyip bırakabilirsiniz. Eski ikili .vsd biçimi desteklenmez; Visio'da “Farklı kaydet → .vsdx” yapın.</p>
+        </div>
+      </div>
+      <div id="minimap" class="floating" style="display:none">
+        <div id="mmBox"><div id="mmPage"></div><div id="mmVp"></div></div>
+      </div>
+      <div id="toast"></div>
+    </section>
+
+    <aside id="right"><div id="inspector"></div></aside>
+  </main>
+
+  <footer id="status">
+    <span id="selInfo"></span>
+    <span class="spacer"></span>
+    <span id="coords"></span>
+    <label><input type="checkbox" id="chkSnap" checked> Izgaraya yapış</label>
+    <label><input type="checkbox" id="chkGrid" checked> Izgara</label>
+    <label><input type="checkbox" id="chkMini" checked> Mini harita</label>
+    <select id="unitSel" title="Ölçü birimi"><option value="mm" selected>mm</option><option value="cm">cm</option><option value="in">inç</option></select>
+  </footer>
+</div>
+
+<div id="helpDialog"><div class="box"><button class="btn" id="helpClose">Kapat</button><h3>VisViewer — kısayollar</h3><div id="helpBody"></div></div></div>
+<input type="file" id="filePick" accept=".vsdx,.vsdm" style="display:none">
+
+<script>
+/* ZIP okuyucu / yazıcı — harici kütüphane yok.
+   Okuma: tarayıcının DecompressionStream('deflate-raw') özelliği.
+   Yazma: değişmeyen girdiler olduğu gibi (yeniden sıkıştırmadan) kopyalanır. */
+'use strict';
+
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(buf) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 255] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+async function pipeBytes(bytes, transform) {
+  const stream = new Blob([bytes]).stream().pipeThrough(transform);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+const inflateRaw = (b) => pipeBytes(b, new DecompressionStream('deflate-raw'));
+const deflateRaw = (b) => pipeBytes(b, new CompressionStream('deflate-raw'));
+
+const utf8dec = new TextDecoder('utf-8');
+const utf8enc = new TextEncoder();
+
+function parseZip(buf) {
+  const u8 = new Uint8Array(buf);
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  let eocd = -1;
+  const minPos = Math.max(0, u8.length - 22 - 65535);
+  for (let i = u8.length - 22; i >= minPos; i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('Geçerli bir VSDX/ZIP dosyası değil. (Eski ikili .vsd biçimi desteklenmez; Visio\'da "Farklı kaydet → .vsdx" yapın.)');
+  const count = dv.getUint16(eocd + 10, true);
+  const cdOff = dv.getUint32(eocd + 16, true);
+  if (cdOff === 0xFFFFFFFF || count === 0xFFFF) throw new Error('ZIP64 biçimi desteklenmiyor.');
+  const entries = [];
+  let p = cdOff;
+  for (let i = 0; i < count; i++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) throw new Error('ZIP dizini bozuk.');
+    const flags = dv.getUint16(p + 8, true);
+    const method = dv.getUint16(p + 10, true);
+    const dosTime = dv.getUint16(p + 12, true);
+    const dosDate = dv.getUint16(p + 14, true);
+    const crc = dv.getUint32(p + 16, true);
+    const csize = dv.getUint32(p + 20, true);
+    const usize = dv.getUint32(p + 24, true);
+    const nlen = dv.getUint16(p + 28, true);
+    const elen = dv.getUint16(p + 30, true);
+    const clen = dv.getUint16(p + 32, true);
+    const lho = dv.getUint32(p + 42, true);
+    const name = utf8dec.decode(u8.subarray(p + 46, p + 46 + nlen));
+    const lnlen = dv.getUint16(lho + 26, true);
+    const lelen = dv.getUint16(lho + 28, true);
+    const start = lho + 30 + lnlen + lelen;
+    entries.push({
+      name, method, crc, csize, usize, flags, dosTime, dosDate,
+      raw: u8.subarray(start, start + csize), data: null, modified: false,
+    });
+    p += 46 + nlen + elen + clen;
+  }
+  return entries;
+}
+
+async function entryBytes(e) {
+  if (e.data) return e.data;
+  if (e.method === 0) e.data = e.raw;
+  else if (e.method === 8) e.data = await inflateRaw(e.raw);
+  else throw new Error('Desteklenmeyen ZIP sıkıştırma yöntemi: ' + e.method);
+  return e.data;
+}
+
+function dosNow() {
+  const d = new Date();
+  return {
+    time: (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1),
+    date: ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate(),
+  };
+}
+
+async function writeZip(entries) {
+  const now = dosNow();
+  const chunks = [];
+  const central = [];
+  let offset = 0;
+  const push = (u8) => { chunks.push(u8); offset += u8.length; };
+
+  for (const e of entries) {
+    const nameBytes = utf8enc.encode(e.name);
+    let method, crc, csize, usize, payload, flags, time, date;
+    if (e.modified) {
+      const data = e.data;
+      usize = data.length;
+      crc = crc32(data);
+      if (usize > 64) {
+        const def = await deflateRaw(data);
+        if (def.length < usize) { method = 8; payload = def; } else { method = 0; payload = data; }
+      } else { method = 0; payload = data; }
+      csize = payload.length;
+      flags = 0x0800; time = now.time; date = now.date;
+    } else {
+      method = e.method; crc = e.crc; csize = e.csize; usize = e.usize;
+      payload = e.raw; flags = e.flags & ~0x0008; time = e.dosTime; date = e.dosDate;
+      flags |= 0x0800;
+    }
+    const lh = new Uint8Array(30 + nameBytes.length);
+    const ldv = new DataView(lh.buffer);
+    ldv.setUint32(0, 0x04034b50, true);
+    ldv.setUint16(4, 20, true);
+    ldv.setUint16(6, flags, true);
+    ldv.setUint16(8, method, true);
+    ldv.setUint16(10, time, true);
+    ldv.setUint16(12, date, true);
+    ldv.setUint32(14, crc, true);
+    ldv.setUint32(18, csize, true);
+    ldv.setUint32(22, usize, true);
+    ldv.setUint16(26, nameBytes.length, true);
+    ldv.setUint16(28, 0, true);
+    lh.set(nameBytes, 30);
+    const localOffset = offset;
+    push(lh); push(payload);
+
+    const ch = new Uint8Array(46 + nameBytes.length);
+    const cdv = new DataView(ch.buffer);
+    cdv.setUint32(0, 0x02014b50, true);
+    cdv.setUint16(4, 20, true);
+    cdv.setUint16(6, 20, true);
+    cdv.setUint16(8, flags, true);
+    cdv.setUint16(10, method, true);
+    cdv.setUint16(12, time, true);
+    cdv.setUint16(14, date, true);
+    cdv.setUint32(16, crc, true);
+    cdv.setUint32(20, csize, true);
+    cdv.setUint32(24, usize, true);
+    cdv.setUint16(28, nameBytes.length, true);
+    cdv.setUint32(42, localOffset, true);
+    ch.set(nameBytes, 46);
+    central.push(ch);
+  }
+  const cdStart = offset;
+  for (const c of central) push(c);
+  const cdSize = offset - cdStart;
+  const end = new Uint8Array(22);
+  const edv = new DataView(end.buffer);
+  edv.setUint32(0, 0x06054b50, true);
+  edv.setUint16(8, entries.length, true);
+  edv.setUint16(10, entries.length, true);
+  edv.setUint32(12, cdSize, true);
+  edv.setUint32(16, cdStart, true);
+  push(end);
+
+  const out = new Uint8Array(offset);
+  let o = 0;
+  for (const c of chunks) { out.set(c, o); o += c.length; }
+  return out;
+}
+
+/* VSDX belge modeli: paketi okur, sayfa/master/stil yapısını çözer,
+   hücre mirasını (şekil → master → stil) ve formül değerlendirmesini sağlar.
+   Düzenleme sırasında orijinal XML DOM'u korunur. */
+'use strict';
+
+const NS_V = 'http://schemas.microsoft.com/office/visio/2012/main';
+const NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+const NS_REL = 'http://schemas.openxmlformats.org/package/2006/relationships';
+
+/* ---------- küçük yardımcılar ---------- */
+function kids(el, name) {
+  const r = [];
+  if (!el) return r;
+  for (const c of el.children) if (c.localName === name) r.push(c);
+  return r;
+}
+function kid(el, name) {
+  if (!el) return null;
+  for (const c of el.children) if (c.localName === name) return c;
+  return null;
+}
+function findCell(el, name) {
+  if (!el) return null;
+  for (const c of el.children) if (c.localName === 'Cell' && c.getAttribute('N') === name) return c;
+  return null;
+}
+function parseNum(v, def) {
+  if (v === null || v === undefined || v === '') return def;
+  if (v === 'TRUE') return 1;
+  if (v === 'FALSE') return 0;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : def;
+}
+function dirOf(path) { const i = path.lastIndexOf('/'); return i < 0 ? '' : path.slice(0, i + 1); }
+function resolvePath(base, target) {
+  if (target.startsWith('/')) return target.slice(1);
+  const parts = (dirOf(base) + target).split('/');
+  const out = [];
+  for (const p of parts) {
+    if (p === '..') out.pop();
+    else if (p !== '.' && p !== '') out.push(p);
+  }
+  return out.join('/');
+}
+function relsPathFor(part) {
+  const i = part.lastIndexOf('/');
+  return part.slice(0, i + 1) + '_rels/' + part.slice(i + 1) + '.rels';
+}
+
+/* ---------- Visio renk paleti (indeksli renkler) ---------- */
+const DEFAULT_PALETTE = [
+  '#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF',
+  '#800000', '#008000', '#000080', '#808000', '#800080', '#008080', '#C0C0C0', '#E6E6E6',
+  '#CDCDCD', '#B3B3B3', '#9A9A9A', '#808080', '#666666', '#4D4D4D', '#333333', '#1A1A1A',
+];
+
+/* ---------- formül değerlendirici ---------- */
+const UNIT = { in: 1, ft: 12, mm: 1 / 25.4, cm: 1 / 2.54, m: 100 / 2.54, pt: 1 / 72, deg: Math.PI / 180, rad: 1, '"': 1 };
+
+function tokenizeFormula(s) {
+  const t = [];
+  let i = 0;
+  while (i < s.length) {
+    const ch = s[i];
+    if (/\s/.test(ch)) { i++; continue; }
+    if (/[0-9.]/.test(ch)) {
+      let j = i;
+      while (j < s.length && /[0-9.]/.test(s[j])) j++;
+      if (j < s.length && /[eE]/.test(s[j]) && /[-+0-9]/.test(s[j + 1] || '')) {
+        j++; if (/[-+]/.test(s[j])) j++;
+        while (j < s.length && /[0-9]/.test(s[j])) j++;
+      }
+      let val = parseFloat(s.slice(i, j));
+      let k = j;
+      while (k < s.length && s[k] === ' ') k++;
+      const um = /^(in|ft|mm|cm|m|pt|deg|rad)\b/.exec(s.slice(k));
+      if (um) { val *= UNIT[um[1]]; j = k + um[1].length; }
+      else if (s[j] === '"') { j++; }
+      t.push({ k: 'n', v: val });
+      i = j; continue;
+    }
+    if (/[A-Za-z_]/.test(ch)) {
+      let j = i;
+      while (j < s.length && /[A-Za-z0-9_.!:$]/.test(s[j])) j++;
+      t.push({ k: 'id', v: s.slice(i, j) });
+      i = j; continue;
+    }
+    if (ch === '"') {
+      let j = i + 1;
+      while (j < s.length && s[j] !== '"') j++;
+      t.push({ k: 's', v: s.slice(i + 1, j) });
+      i = j + 1; continue;
+    }
+    const two = s.slice(i, i + 2);
+    if (['<=', '>=', '<>', '&&', '||'].includes(two)) { t.push({ k: 'op', v: two }); i += 2; continue; }
+    t.push({ k: 'op', v: ch }); i++;
+  }
+  return t;
+}
+
+function evalFormula(f, ctx) {
+  const t = tokenizeFormula(f.replace(/^=/, ''));
+  let i = 0;
+  const peek = () => t[i];
+  const isOp = (v) => t[i] && t[i].k === 'op' && t[i].v === v;
+  const fail = (m) => { throw new Error('formül: ' + m); };
+
+  function primary() {
+    const tok = t[i++];
+    if (!tok) fail('beklenmedik son');
+    if (tok.k === 'n') return tok.v;
+    if (tok.k === 's') fail('metin');
+    if (tok.k === 'op') {
+      if (tok.v === '(') { const v = expr(); if (!isOp(')')) fail(')'); i++; return v; }
+      if (tok.v === '-') return -unary();
+      if (tok.v === '+') return unary();
+      fail('işleç ' + tok.v);
+    }
+    // identifier
+    if (isOp('(')) {
+      i++;
+      const args = [];
+      if (!isOp(')')) {
+        for (;;) { args.push(expr()); if (isOp(',')) { i++; continue; } break; }
+      }
+      if (!isOp(')')) fail(')');
+      i++;
+      return callFn(tok.v.toUpperCase(), args);
+    }
+    const name = tok.v;
+    if (name === 'TRUE') return 1;
+    if (name === 'FALSE') return 0;
+    if (name === 'PI') return Math.PI;
+    return ctx.ref(name);
+  }
+  function callFn(n, a) {
+    switch (n) {
+      case 'ABS': return Math.abs(a[0]);
+      case 'MIN': return Math.min(...a);
+      case 'MAX': return Math.max(...a);
+      case 'SQRT': return Math.sqrt(a[0]);
+      case 'INT': return Math.floor(a[0]);
+      case 'ROUND': return Math.round(a[0]);
+      case 'SIN': return Math.sin(a[0]);
+      case 'COS': return Math.cos(a[0]);
+      case 'TAN': return Math.tan(a[0]);
+      case 'ATAN': return Math.atan(a[0]);
+      case 'ATAN2': return Math.atan2(a[0], a[1]);
+      case 'RAD': return a[0] * Math.PI / 180;
+      case 'DEG': return a[0] * 180 / Math.PI;
+      case 'POW': return Math.pow(a[0], a[1]);
+      case 'IF': return a[0] ? a[1] : a[2];
+      case 'AND': return a.every(Boolean) ? 1 : 0;
+      case 'OR': return a.some(Boolean) ? 1 : 0;
+      case 'NOT': return a[0] ? 0 : 1;
+      case 'GUARD': case 'DEFERRED': return a[0];
+      default: return fail('işlev ' + n);
+    }
+  }
+  function unary() { return primary(); }
+  function power() {
+    let v = unary();
+    while (isOp('^')) { i++; v = Math.pow(v, unary()); }
+    return v;
+  }
+  function mul() {
+    let v = power();
+    while (isOp('*') || isOp('/')) {
+      const o = t[i++].v;
+      const r = power();
+      v = o === '*' ? v * r : v / r;
+    }
+    return v;
+  }
+  function add() {
+    let v = mul();
+    while (isOp('+') || isOp('-')) {
+      const o = t[i++].v;
+      const r = mul();
+      v = o === '+' ? v + r : v - r;
+    }
+    return v;
+  }
+  function cmp() {
+    let v = add();
+    while (t[i] && t[i].k === 'op' && ['<', '>', '<=', '>=', '=', '<>'].includes(t[i].v)) {
+      const o = t[i++].v;
+      const r = add();
+      v = ({ '<': v < r, '>': v > r, '<=': v <= r, '>=': v >= r, '=': v === r, '<>': v !== r })[o] ? 1 : 0;
+    }
+    return v;
+  }
+  function expr() {
+    let v = cmp();
+    while (t[i] && t[i].k === 'op' && (t[i].v === '&&' || t[i].v === '||')) {
+      const o = t[i++].v;
+      const r = cmp();
+      v = o === '&&' ? (v && r ? 1 : 0) : (v || r ? 1 : 0);
+    }
+    return v;
+  }
+  const out = expr();
+  if (i < t.length) fail('fazla belirteç');
+  if (!Number.isFinite(out)) fail('sayı değil');
+  return out;
+}
+
+/* ---------- matris yardımcıları (SVG: [a b c d e f]) ---------- */
+const M_ID = [1, 0, 0, 1, 0, 0];
+function mMul(m, n) { // m * n (önce n uygulanır)
+  return [
+    m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1],
+    m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3],
+    m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5],
+  ];
+}
+function mApply(m, x, y) { return [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]]; }
+function mInv(m) {
+  const det = m[0] * m[3] - m[1] * m[2];
+  if (Math.abs(det) < 1e-12) return M_ID.slice();
+  const a = m[3] / det, b = -m[1] / det, c = -m[2] / det, d = m[0] / det;
+  return [a, b, c, d, -(a * m[4] + c * m[5]), -(b * m[4] + d * m[5])];
+}
+function mTranslate(x, y) { return [1, 0, 0, 1, x, y]; }
+function mRotate(a) { const c = Math.cos(a), s = Math.sin(a); return [c, s, -s, c, 0, 0]; }
+function mScale(x, y) { return [x, 0, 0, y, 0, 0]; }
+
+/* ---------- stil hücre grupları ---------- */
+const LINE_CELLS = new Set(['LineWeight', 'LineColor', 'LinePattern', 'Rounding', 'EndArrowSize', 'BeginArrow', 'BeginArrowSize',
+  'EndArrow', 'LineCap', 'LineColorTrans']);
+const FILL_CELLS = new Set(['FillForegnd', 'FillBkgnd', 'FillPattern', 'ShdwForegnd', 'ShdwPattern', 'FillForegndTrans',
+  'FillBkgndTrans', 'FillGradientEnabled', 'FillGradientDir', 'FillGradientAngle']);
+const TEXT_CELLS = new Set(['LeftMargin', 'RightMargin', 'TopMargin', 'BottomMargin', 'VerticalAlign', 'TextBkgnd', 'DefaultTabStop',
+  'TextDirection', 'TextBkgndTrans']);
+
+/* ---------- Belge ---------- */
+class VDoc {
+  constructor() {
+    this.name = 'cizim.vsdx';
+    this.entries = [];
+    this.byName = new Map();
+    this.dom = new Map();       // parça adı → XML Document
+    this.pages = [];
+    this.masters = new Map();
+    this.styles = new Map();
+    this.colors = [];
+    this.faces = new Map();
+    this.report = [];
+    this.dirtyParts = new Set();
+    this.docPath = 'visio/document.xml';
+  }
+
+  note(kind, text) {
+    if (!this.report.some((r) => r.text === text)) this.report.push({ kind, text });
+  }
+
+  static async load(buf, name) {
+    const d = new VDoc();
+    d.name = name || d.name;
+    d.entries = parseZip(buf);
+    for (const e of d.entries) d.byName.set(e.name, e);
+
+    // ana ilişki: belge parçası
+    let docPath = 'visio/document.xml';
+    const rootRels = await d.readXml('_rels/.rels', true);
+    if (rootRels) {
+      for (const r of kids(rootRels.documentElement, 'Relationship')) {
+        if (/\/document$/.test(r.getAttribute('Type') || '')) docPath = resolvePath('/', r.getAttribute('Target'));
+      }
+    }
+    if (!d.byName.has(docPath)) throw new Error('Visio belge parçası (visio/document.xml) bulunamadı. Bu bir VSDX dosyası değil.');
+    d.docPath = docPath;
+    const docDom = await d.readXml(docPath);
+    const docRels = await d.readRels(docPath);
+    d.parseDocument(docDom);
+
+    let pagesPath = null, mastersPath = null;
+    for (const r of docRels) {
+      if (/\/pages$/.test(r.type)) pagesPath = r.path;
+      else if (/\/masters$/.test(r.type)) mastersPath = r.path;
+    }
+    if (!pagesPath) throw new Error('Dosyada sayfa tanımı bulunamadı.');
+    await d.parsePages(pagesPath);
+    if (mastersPath && d.byName.has(mastersPath)) await d.parseMasters(mastersPath);
+    await d.preloadMedia();
+    return d;
+  }
+
+  async preloadMedia() {
+    this.imageCache = new Map();
+    const mimes = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', svg: 'image/svg+xml' };
+    for (const page of this.pages) {
+      for (const rel of page.rels || []) {
+        const ext = (rel.path.split('.').pop() || '').toLowerCase();
+        const mime = mimes[ext];
+        if (!mime || rel.external || !this.byName.has(rel.path) || this.imageCache.has(rel.path)) continue;
+        const bytes = await entryBytes(this.byName.get(rel.path));
+        let bin = '';
+        for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+        this.imageCache.set(rel.path, `data:${mime};base64,${btoa(bin)}`);
+      }
+    }
+  }
+
+  async readXml(part, optional) {
+    if (this.dom.has(part)) return this.dom.get(part);
+    const e = this.byName.get(part);
+    if (!e) { if (optional) return null; throw new Error('Parça bulunamadı: ' + part); }
+    const bytes = await entryBytes(e);
+    const text = utf8dec.decode(bytes).replace(/^﻿/, '');
+    const dom = new DOMParser().parseFromString(text, 'application/xml');
+    if (dom.getElementsByTagName('parsererror').length) throw new Error('XML ayrıştırılamadı: ' + part);
+    this.dom.set(part, dom);
+    return dom;
+  }
+
+  async readRels(part) {
+    const rp = relsPathFor(part);
+    const dom = await this.readXml(rp, true);
+    const out = [];
+    if (!dom) return out;
+    for (const r of kids(dom.documentElement, 'Relationship')) {
+      const target = r.getAttribute('Target');
+      const external = r.getAttribute('TargetMode') === 'External';
+      out.push({
+        id: r.getAttribute('Id'), type: r.getAttribute('Type') || '', target, external,
+        path: external ? target : resolvePath(part, target),
+      });
+    }
+    return out;
+  }
+
+  parseDocument(dom) {
+    const root = dom.documentElement;
+    const colors = kid(root, 'Colors');
+    this.colors = DEFAULT_PALETTE.slice();
+    if (colors) {
+      for (const c of kids(colors, 'ColorEntry')) {
+        const ix = parseInt(c.getAttribute('IX'), 10);
+        if (Number.isFinite(ix)) this.colors[ix] = c.getAttribute('RGB');
+      }
+    }
+    const faces = kid(root, 'FaceNames');
+    if (faces) for (const f of kids(faces, 'FaceName')) this.faces.set(f.getAttribute('ID'), f.getAttribute('Name'));
+    const styles = kid(root, 'StyleSheets');
+    if (styles) for (const s of kids(styles, 'StyleSheet')) this.styles.set(s.getAttribute('ID'), s);
+  }
+
+  async parsePages(pagesPath) {
+    const dom = await this.readXml(pagesPath);
+    const rels = new Map((await this.readRels(pagesPath)).map((r) => [r.id, r]));
+    for (const p of kids(dom.documentElement, 'Page')) {
+      const relEl = kid(p, 'Rel');
+      const rid = relEl ? relEl.getAttributeNS(NS_R, 'id') : null;
+      const rel = rid ? rels.get(rid) : null;
+      const page = {
+        id: p.getAttribute('ID'),
+        name: p.getAttribute('Name') || p.getAttribute('NameU') || ('Sayfa ' + (this.pages.length + 1)),
+        background: p.getAttribute('Background') === '1',
+        backPage: p.getAttribute('BackPage'),
+        path: rel ? rel.path : null,
+        sheet: kid(p, 'PageSheet'),
+        w: 11, h: 8.5,
+      };
+      if (page.sheet) {
+        page.w = parseNum(findCell(page.sheet, 'PageWidth')?.getAttribute('V'), 11);
+        page.h = parseNum(findCell(page.sheet, 'PageHeight')?.getAttribute('V'), 8.5);
+      }
+      if (page.path && this.byName.has(page.path)) {
+        page.dom = await this.readXml(page.path);
+        page.rels = await this.readRels(page.path);
+        this.pages.push(page);
+      } else {
+        this.note('uyarı', 'Sayfa içeriği bulunamadı: ' + page.name);
+      }
+    }
+    if (!this.pages.length) throw new Error('Dosyada görüntülenecek sayfa yok.');
+  }
+
+  async parseMasters(path) {
+    const dom = await this.readXml(path);
+    const rels = new Map((await this.readRels(path)).map((r) => [r.id, r]));
+    for (const m of kids(dom.documentElement, 'Master')) {
+      const relEl = kid(m, 'Rel');
+      const rid = relEl ? relEl.getAttributeNS(NS_R, 'id') : null;
+      const rel = rid ? rels.get(rid) : null;
+      if (!rel || !this.byName.has(rel.path)) continue;
+      const mdom = await this.readXml(rel.path);
+      const shapes = kid(mdom.documentElement, 'Shapes');
+      const byId = new Map();
+      const top = shapes ? kids(shapes, 'Shape') : [];
+      const walk = (list) => {
+        for (const s of list) {
+          byId.set(s.getAttribute('ID'), s);
+          const sub = kid(s, 'Shapes');
+          if (sub) walk(kids(sub, 'Shape'));
+        }
+      };
+      walk(top);
+      this.masters.set(m.getAttribute('ID'), {
+        id: m.getAttribute('ID'), name: m.getAttribute('Name') || m.getAttribute('NameU'),
+        shapeById: byId, top,
+        w: parseNum(findCell(kid(m, 'PageSheet'), 'PageWidth')?.getAttribute('V'), 0),
+        h: parseNum(findCell(kid(m, 'PageSheet'), 'PageHeight')?.getAttribute('V'), 0),
+      });
+    }
+  }
+
+  /* ---------- şekil ağacı ---------- */
+  buildTree(page) {
+    const root = page.dom.documentElement;
+    const shapes = kid(root, 'Shapes');
+    const map = new Map();
+    const make = (el, parent) => {
+      const n = new Node(this, page, el, parent);
+      map.set(n.id, n);
+      const sub = kid(el, 'Shapes');
+      if (sub) for (const c of kids(sub, 'Shape')) n.children.push(make(c, n));
+      return n;
+    };
+    const top = shapes ? kids(shapes, 'Shape').map((s) => make(s, null)) : [];
+    page.tree = top;
+    page.nodeMap = map;
+    this.computeMatrices(top, M_ID);
+    return top;
+  }
+
+  computeMatrices(list, parentM) {
+    for (const n of list) {
+      n.computeBasics();
+      let m = mTranslate(n.pinX, n.pinY);
+      if (n.angle) m = mMul(m, mRotate(n.angle));
+      if (n.flipX || n.flipY) m = mMul(m, mScale(n.flipX ? -1 : 1, n.flipY ? -1 : 1));
+      m = mMul(m, mTranslate(-n.locX, -n.locY));
+      n.M = mMul(parentM, m);
+      n.parentM = parentM;
+      this.computeMatrices(n.children, n.M);
+    }
+  }
+
+  getConnects(page) {
+    const root = page.dom.documentElement;
+    const c = kid(root, 'Connects');
+    return c ? kids(c, 'Connect') : [];
+  }
+
+  pageLayers(page) {
+    const out = [];
+    if (!page.sheet) return out;
+    for (const s of kids(page.sheet, 'Section')) {
+      if (s.getAttribute('N') !== 'Layer') continue;
+      for (const row of kids(s, 'Row')) {
+        const cells = {};
+        for (const c of kids(row, 'Cell')) cells[c.getAttribute('N')] = c;
+        out.push({
+          ix: parseInt(row.getAttribute('IX'), 10),
+          name: cells.Name ? cells.Name.getAttribute('V') : ('Katman ' + row.getAttribute('IX')),
+          visible: cells.Visible ? parseNum(cells.Visible.getAttribute('V'), 1) !== 0 : true,
+          cell: cells.Visible || null,
+        });
+      }
+    }
+    return out;
+  }
+
+  masterShapeFor(node) {
+    const el = node.el;
+    const ownMaster = el.getAttribute('Master');
+    let mid = ownMaster;
+    let p = node.parent;
+    while (!mid && p) { mid = p.el.getAttribute('Master'); p = p.parent; }
+    if (!mid) return null;
+    const m = this.masters.get(mid);
+    if (!m) return null;
+    const msid = el.getAttribute('MasterShape');
+    if (msid) return m.shapeById.get(msid) || null;
+    if (ownMaster) return m.top.length === 1 ? m.top[0] : (m.top[0] || null);
+    return null;
+  }
+
+  isMasterTopRef(node) { return !!node.el.getAttribute('Master'); }
+
+  /* kaynak parçası: sayfa görselleri için rel çözümü */
+  relTarget(page, rid) {
+    const r = (page.rels || []).find((x) => x.id === rid);
+    return r ? r.path : null;
+  }
+
+  markDirty(page) { this.dirtyParts.add(page.path); }
+
+  async serialize() {
+    const ser = new XMLSerializer();
+    for (const part of this.dirtyParts) {
+      const dom = this.dom.get(part);
+      if (!dom) continue;
+      let xml = ser.serializeToString(dom);
+      xml = xml.replace(/^<\?xml[^?]*\?>\s*/, '');
+      xml = '<?xml version="1.0" encoding="utf-8" standalone="yes"?>\n' + xml;
+      const e = this.byName.get(part);
+      e.data = utf8enc.encode(xml);
+      e.modified = true;
+    }
+    return writeZip(this.entries);
+  }
+}
+
+/* ---------- Şekil düğümü ---------- */
+class Node {
+  constructor(doc, page, el, parent) {
+    this.doc = doc;
+    this.page = page;
+    this.el = el;
+    this.parent = parent;
+    this.id = el.getAttribute('ID');
+    this.type = el.getAttribute('Type') || 'Shape';
+    this.children = [];
+    this._evalDepth = 0;
+    this._ms = undefined;
+  }
+
+  get ms() {
+    if (this._ms === undefined) this._ms = this.doc.masterShapeFor(this);
+    return this._ms;
+  }
+
+  styleId(kind) {
+    let v = this.el.getAttribute(kind);
+    if (v === null && this.ms) v = this.ms.getAttribute(kind);
+    return v === null ? '0' : v;
+  }
+
+  /* hücre kaydı: {el, own} ya da null */
+  cellEntry(name) {
+    const own = findCell(this.el, name);
+    if (own && own.getAttribute('F') !== 'Inh') return { el: own, own: true };
+    const ms = this.ms;
+    if (ms) {
+      const c = findCell(ms, name);
+      if (c && c.getAttribute('F') !== 'Inh') return { el: c, own: false };
+    }
+    const kind = LINE_CELLS.has(name) ? 'LineStyle' : FILL_CELLS.has(name) ? 'FillStyle' : TEXT_CELLS.has(name) ? 'TextStyle' : null;
+    if (kind) {
+      let sid = this.styleId(kind);
+      const seen = new Set();
+      while (sid !== null && !seen.has(sid)) {
+        seen.add(sid);
+        const sheet = this.doc.styles.get(sid);
+        if (!sheet) break;
+        const c = findCell(sheet, name);
+        if (c && c.getAttribute('F') !== 'Inh') return { el: c, own: false };
+        sid = sheet.getAttribute(kind);
+      }
+    }
+    if (own) return { el: own, own: true };
+    return null;
+  }
+
+  /* sayısal hücre değeri (mirasta formül, bu şeklin ölçüleriyle) */
+  num(name, def) {
+    const e = this.cellEntry(name);
+    return this.entryNum(e, def);
+  }
+
+  entryNum(e, def) {
+    if (!e) return def;
+    const f = e.el.getAttribute('F');
+    const v = e.el.getAttribute('V');
+    if (e.own && v !== null && v !== '') return parseNum(v, def);
+    if (f && f !== 'Inh' && this._evalDepth < 6) {
+      try {
+        this._evalDepth++;
+        return evalFormula(f, this.formulaCtx());
+      } catch (err) {
+        // yedek: önbellek değeri
+      } finally { this._evalDepth--; }
+    }
+    return parseNum(v, def);
+  }
+
+  str(name, def) {
+    const e = this.cellEntry(name);
+    if (!e) return def;
+    const v = e.el.getAttribute('V');
+    return v === null ? def : v;
+  }
+
+  formulaCtx() {
+    const self = this;
+    return {
+      ref(name) {
+        let m;
+        if ((m = /^Sheet\.(\d+)!(.+)$/.exec(name))) {
+          const n = self.page.nodeMap && self.page.nodeMap.get(m[1]);
+          if (n) return n.num(m[2], NaN) ?? NaN;
+          throw new Error('sheet ref');
+        }
+        if ((m = /^Geometry(\d+)\.([A-Z]+)(\d+)$/.exec(name))) return self.geoRef(parseInt(m[1], 10) - 1, m[3], m[2]);
+        if (/^(Controls|User|Prop|Scratch|Connections|Actions|Hyperlink)\./.test(name)) throw new Error('desteklenmeyen ref');
+        const v = self.num(name, NaN);
+        if (!Number.isFinite(v)) throw new Error('hücre yok: ' + name);
+        return v;
+      },
+    };
+  }
+
+  geoRef(sectionIx, rowIx, cellName) {
+    const secs = this.sections('Geometry');
+    const s = secs.get(String(sectionIx));
+    if (!s) throw new Error('geo ref');
+    const r = s.rows.get(String(rowIx));
+    if (!r) throw new Error('geo row');
+    const e = r.cells.get(cellName);
+    if (!e) throw new Error('geo cell');
+    return this.entryNum(e, NaN);
+  }
+
+  /* birleşik bölüm: master üstüne şeklin kendisi */
+  sections(name) {
+    const out = new Map();
+    const take = (el, own) => {
+      for (const sec of kids(el, 'Section')) {
+        if (sec.getAttribute('N') !== name) continue;
+        const ix = sec.getAttribute('IX') || '0';
+        if (sec.getAttribute('Del') === '1') { out.delete(ix); continue; }
+        let s = out.get(ix);
+        if (!s) { s = { ix, cells: new Map(), rows: new Map(), el: sec }; out.set(ix, s); }
+        if (own) s.el = sec;
+        for (const ch of sec.children) {
+          if (ch.localName === 'Cell') s.cells.set(ch.getAttribute('N'), { el: ch, own });
+          else if (ch.localName === 'Row') {
+            const key = ch.getAttribute('IX') || ch.getAttribute('N');
+            if (ch.getAttribute('Del') === '1') { s.rows.delete(key); continue; }
+            let r = s.rows.get(key);
+            if (!r) { r = { key, t: null, n: ch.getAttribute('N'), cells: new Map(), el: ch }; s.rows.set(key, r); }
+            if (own) r.el = ch;
+            if (ch.getAttribute('T')) r.t = ch.getAttribute('T');
+            for (const c of kids(ch, 'Cell')) r.cells.set(c.getAttribute('N'), { el: c, own });
+          }
+        }
+      }
+    };
+    if (this.ms) take(this.ms, false);
+    take(this.el, true);
+    return out;
+  }
+
+  sortedRows(sec) {
+    const rows = [...sec.rows.values()];
+    const numeric = rows.every((r) => /^\d+$/.test(r.key));
+    if (numeric) rows.sort((a, b) => parseInt(a.key, 10) - parseInt(b.key, 10));
+    return rows;
+  }
+
+  computeBasics() {
+    this.w = this.num('Width', 0);
+    this.h = this.num('Height', 0);
+    this.pinX = this.num('PinX', 0);
+    this.pinY = this.num('PinY', 0);
+    this.locX = this.num('LocPinX', this.w / 2);
+    this.locY = this.num('LocPinY', this.h / 2);
+    this.angle = this.num('Angle', 0);
+    this.flipX = this.num('FlipX', 0) !== 0;
+    this.flipY = this.num('FlipY', 0) !== 0;
+    this.oneD = this.num('OneD', 0) !== 0 || (findCell(this.el, 'BeginX') !== null && findCell(this.el, 'EndX') !== null);
+  }
+
+  text() {
+    let t = kid(this.el, 'Text');
+    if (!t && this.ms) t = kid(this.ms, 'Text');
+    if (!t) return '';
+    let s = '';
+    const walk = (n) => {
+      for (const c of n.childNodes) {
+        if (c.nodeType === 3 || c.nodeType === 4) s += c.nodeValue;
+        else if (c.nodeType === 1) {
+          const ln = c.localName;
+          if (ln === 'cp' || ln === 'pp' || ln === 'tp') continue;
+          walk(c);
+        }
+      }
+    };
+    walk(t);
+    return s.replace(/\r\n?/g, '\n').replace(/\u2028/g, '\n');
+  }
+
+  /* kök sayfa koordinatında sınır kutusu (dönmeyi hesaba katar) */
+  pageBBox() {
+    const pts = [mApply(this.M, 0, 0), mApply(this.M, this.w, 0), mApply(this.M, this.w, this.h), mApply(this.M, 0, this.h)];
+    const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+    return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys), pts };
+  }
+}
+
+function colorOf(doc, v) {
+  if (v === null || v === undefined || v === '') return null;
+  if (v[0] === '#') {
+    if (v.length === 4) return '#' + v[1] + v[1] + v[2] + v[2] + v[3] + v[3];
+    return v.slice(0, 7);
+  }
+  const n = parseInt(v, 10);
+  if (Number.isFinite(n) && n >= 0 && n < doc.colors.length) return doc.colors[n];
+  return null;
+}
+
+/* SVG çizim motoru: şekil geometrisi, stil, metin, bağlayıcı uçları, resimler.
+   Tüm koordinatlar inç cinsinden, Y yukarı; sayfa grubu bir kez ters çevrilir. */
+'use strict';
+
+const SVGNS = 'http://www.w3.org/2000/svg';
+const FONT_FALLBACK = '"Segoe UI", Calibri, Arial, Helvetica, sans-serif';
+
+function S(tag, attrs, children) {
+  const el = document.createElementNS(SVGNS, tag);
+  if (attrs) for (const k in attrs) if (attrs[k] !== undefined && attrs[k] !== null) el.setAttribute(k, attrs[k]);
+  if (children) for (const c of children) if (c) el.appendChild(c);
+  return el;
+}
+const f4 = (n) => (Math.round(n * 10000) / 10000).toString();
+const normAng = (a) => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+
+/* ---------- metin ölçümü ---------- */
+const _mctx = document.createElement('canvas').getContext('2d');
+function measureText(str, sizeIn, bold, italic, family) {
+  const px = sizeIn * 96;
+  _mctx.font = `${italic ? 'italic ' : ''}${bold ? 'bold ' : ''}${px}px ${family}`;
+  return _mctx.measureText(str).width / 96;
+}
+
+/* ---------- geometri ---------- */
+function ellipticalArc(x0, y0, x1, y1, xc, yc, ang, ratio, out) {
+  if (!(ratio > 0)) ratio = 1;
+  const ca = Math.cos(-ang), sa = Math.sin(-ang);
+  const tr = (x, y) => [x * ca - y * sa, (x * sa + y * ca) * ratio];
+  const [ax, ay] = tr(x0, y0), [bx, by] = tr(xc, yc), [cx, cy] = tr(x1, y1);
+  const dd = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+  if (Math.abs(dd) < 1e-12) return `L${f4(x1)} ${f4(y1)}`;
+  const a2 = ax * ax + ay * ay, b2 = bx * bx + by * by, c2 = cx * cx + cy * cy;
+  const ux = (a2 * (by - cy) + b2 * (cy - ay) + c2 * (ay - by)) / dd;
+  const uy = (a2 * (cx - bx) + b2 * (ax - cx) + c2 * (bx - ax)) / dd;
+  const R = Math.hypot(ax - ux, ay - uy);
+  const a0 = Math.atan2(ay - uy, ax - ux), a1 = Math.atan2(cy - uy, cx - ux);
+  const cross = (bx - ax) * (cy - by) - (by - ay) * (cx - bx);
+  const ccw = cross > 0;
+  const span = ccw ? normAng(a1 - a0) : normAng(a0 - a1);
+  if (out) {
+    const ca2 = Math.cos(ang), sa2 = Math.sin(ang);
+    for (let i = 1; i <= 16; i++) {
+      const t = a0 + (ccw ? 1 : -1) * span * (i / 16);
+      const qx = ux + R * Math.cos(t), qy = (uy + R * Math.sin(t)) / ratio;
+      out.push([qx * ca2 - qy * sa2, qx * sa2 + qy * ca2]);
+    }
+  }
+  return `A${f4(R)} ${f4(R / ratio)} ${f4(ang * 180 / Math.PI)} ${span > Math.PI ? 1 : 0} ${ccw ? 1 : 0} ${f4(x1)} ${f4(y1)}`;
+}
+
+function bulgeArc(x0, y0, x1, y1, bow, out) {
+  const chord = Math.hypot(x1 - x0, y1 - y0);
+  if (chord < 1e-9 || Math.abs(bow) < 1e-9) return `L${f4(x1)} ${f4(y1)}`;
+  const r = (chord * chord / 4 + bow * bow) / (2 * Math.abs(bow));
+  if (out) {
+    const dx = (x1 - x0) / chord, dy = (y1 - y0) / chord;
+    const nx = dy, ny = -dx; // yolun sağı
+    const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+    const sg = bow > 0 ? 1 : -1;
+    const px = mx + nx * bow, py = my + ny * bow;
+    const cx0 = px - sg * nx * r, cy0 = py - sg * ny * r;
+    const a0 = Math.atan2(y0 - cy0, x0 - cx0), a1 = Math.atan2(y1 - cy0, x1 - cx0);
+    const span = bow > 0 ? normAng(a1 - a0) : -normAng(a0 - a1);
+    for (let i = 1; i <= 12; i++) { const t = a0 + span * (i / 12); out.push([cx0 + r * Math.cos(t), cy0 + r * Math.sin(t)]); }
+  }
+  return `A${f4(r)} ${f4(r)} 0 ${Math.abs(bow) > r ? 1 : 0} ${bow > 0 ? 1 : 0} ${f4(x1)} ${f4(y1)}`;
+}
+
+function numList(f, name) {
+  const m = new RegExp('^' + name + '\\s*\\((.*)\\)\\s*$', 'i').exec((f || '').trim());
+  if (!m) return null;
+  const parts = m[1].split(',').map((s) => parseFloat(s.replace(/[^0-9eE+.\-]/g, '')));
+  return parts.every((n) => Number.isFinite(n)) ? parts : null;
+}
+
+function nurbsPoints(start, f, W, H) {
+  const a = numList(f, 'NURBS');
+  if (!a || a.length < 8) return null;
+  const degree = Math.max(1, Math.min(8, Math.round(a[1])));
+  const xRel = a[2] === 1, yRel = a[3] === 1;
+  const ctrl = [{ x: start[0], y: start[1], w: 1 }];
+  for (let i = 4; i + 3 < a.length; i += 4) {
+    ctrl.push({ x: xRel ? a[i] * W : a[i], y: yRel ? a[i + 1] * H : a[i + 1], w: a[i + 3] || 1 });
+  }
+  const n = ctrl.length;
+  if (n < 2) return null;
+  const p = Math.min(degree, n - 1);
+  const knots = [];
+  for (let i = 0; i < p + 1; i++) knots.push(0);
+  for (let i = 1; i < n - p; i++) knots.push(i / (n - p));
+  for (let i = 0; i < p + 1; i++) knots.push(1);
+  const basis = (i, k, u) => {
+    if (k === 0) return (u >= knots[i] && u < knots[i + 1]) || (u === 1 && knots[i + 1] === 1 && knots[i] < 1) ? 1 : 0;
+    let v = 0;
+    const d1 = knots[i + k] - knots[i], d2 = knots[i + k + 1] - knots[i + 1];
+    if (d1 > 0) v += (u - knots[i]) / d1 * basis(i, k - 1, u);
+    if (d2 > 0) v += (knots[i + k + 1] - u) / d2 * basis(i + 1, k - 1, u);
+    return v;
+  };
+  const out = [];
+  const steps = Math.max(12, n * 10);
+  for (let s = 1; s <= steps; s++) {
+    const u = s / steps;
+    let x = 0, y = 0, wsum = 0;
+    for (let i = 0; i < n; i++) {
+      const b = basis(i, p, u) * ctrl[i].w;
+      x += b * ctrl[i].x; y += b * ctrl[i].y; wsum += b;
+    }
+    if (wsum > 0) out.push([x / wsum, y / wsum]);
+  }
+  const last = ctrl[n - 1];
+  out.push([last.x, last.y]);
+  return out;
+}
+
+function roundedPolyline(pts, closed, r) {
+  const n = pts.length;
+  if (n < 3) return null;
+  const get = (i) => pts[(i + n) % n];
+  let d = '';
+  const start = closed ? 0 : 1;
+  const end = closed ? n : n - 1;
+  const corner = (i) => {
+    const p = get(i), a = get(i - 1), b = get(i + 1);
+    const la = Math.hypot(a[0] - p[0], a[1] - p[1]), lb = Math.hypot(b[0] - p[0], b[1] - p[1]);
+    const rr = Math.min(r, la / 2, lb / 2);
+    if (rr <= 1e-9) return { p, a: p, b: p };
+    return {
+      p,
+      a: [p[0] + (a[0] - p[0]) / la * rr, p[1] + (a[1] - p[1]) / la * rr],
+      b: [p[0] + (b[0] - p[0]) / lb * rr, p[1] + (b[1] - p[1]) / lb * rr],
+    };
+  };
+  if (!closed) d = `M${f4(pts[0][0])} ${f4(pts[0][1])}`;
+  let first = true;
+  for (let i = start; i < end; i++) {
+    const c = corner(i);
+    if (first && closed) { d += `M${f4(c.a[0])} ${f4(c.a[1])}`; first = false; }
+    else d += `L${f4(c.a[0])} ${f4(c.a[1])}`;
+    d += `Q${f4(c.p[0])} ${f4(c.p[1])} ${f4(c.b[0])} ${f4(c.b[1])}`;
+  }
+  if (closed) d += 'Z';
+  else d += `L${f4(pts[n - 1][0])} ${f4(pts[n - 1][1])}`;
+  return d;
+}
+
+/* Şeklin geometri bölümlerini SVG yollarına çevirir */
+function buildGeometry(node, ctxNotes) {
+  const secs = node.sections('Geometry');
+  const keys = [...secs.keys()].sort((a, b) => Number(a) - Number(b));
+  const W = node.w, H = node.h;
+  const out = [];
+  for (const k of keys) {
+    const sec = secs.get(k);
+    const gv = (n, def) => node.entryNum(sec.cells.get(n), def);
+    if (gv('NoShow', 0) !== 0) continue;
+    const rows = node.sortedRows(sec);
+    let d = '';
+    let cx = 0, cy = 0, sx = 0, sy = 0, started = false;
+    let segs = 0;
+    let polyOnly = true;
+    let polySub = [];
+    const polyAll = [];
+    const first = [], tangents = { first: null, second: null, last: null, prev: null };
+    const noteMove = (x, y) => {
+      if (!tangents.first) tangents.first = [x, y];
+    };
+    const noteSeg = (px, py, x, y) => {
+      if (!tangents.second) tangents.second = [x, y];
+      tangents.prev = [px, py];
+      tangents.last = [x, y];
+    };
+    const closeSub = () => {
+      if (started && segs > 1 && Math.abs(cx - sx) < 1e-6 && Math.abs(cy - sy) < 1e-6) d += 'Z';
+      if (polySub.length) polyAll.push({ pts: polySub, closed: started && segs > 1 && Math.abs(cx - sx) < 1e-6 && Math.abs(cy - sy) < 1e-6 });
+      polySub = [];
+    };
+    for (const row of rows) {
+      const t = row.t;
+      const rv = (n, def) => node.entryNum(row.cells.get(n), def);
+      const rf = (n) => { const e = row.cells.get(n); return e ? e.el.getAttribute('F') : null; };
+      switch (t) {
+        case 'MoveTo': case 'RelMoveTo': {
+          closeSub();
+          let x = rv('X', 0), y = rv('Y', 0);
+          if (t === 'RelMoveTo') { x *= W; y *= H; }
+          d += `M${f4(x)} ${f4(y)}`;
+          cx = sx = x; cy = sy = y; started = true; segs = 1;
+          polySub = [[x, y]];
+          noteMove(x, y);
+          break;
+        }
+        case 'LineTo': case 'RelLineTo': {
+          let x = rv('X', 0), y = rv('Y', 0);
+          if (t === 'RelLineTo') { x *= W; y *= H; }
+          if (!started) { d += `M${f4(cx)} ${f4(cy)}`; started = true; sx = cx; sy = cy; polySub = [[cx, cy]]; noteMove(cx, cy); }
+          d += `L${f4(x)} ${f4(y)}`;
+          noteSeg(cx, cy, x, y);
+          polySub.push([x, y]);
+          cx = x; cy = y; segs++;
+          break;
+        }
+        case 'ArcTo': {
+          polyOnly = false;
+          const x = rv('X', 0), y = rv('Y', 0), a = rv('A', 0);
+          if (!started) { d += `M${f4(cx)} ${f4(cy)}`; started = true; sx = cx; sy = cy; noteMove(cx, cy); }
+          d += bulgeArc(cx, cy, x, y, a, polySub);
+          if (!polySub.length || polySub[polySub.length - 1][0] !== x || polySub[polySub.length - 1][1] !== y) polySub.push([x, y]);
+          noteSeg(cx, cy, x, y);
+          cx = x; cy = y; segs++;
+          break;
+        }
+        case 'EllipticalArcTo': {
+          polyOnly = false;
+          const x = rv('X', 0), y = rv('Y', 0);
+          if (!started) { d += `M${f4(cx)} ${f4(cy)}`; started = true; sx = cx; sy = cy; noteMove(cx, cy); }
+          d += ellipticalArc(cx, cy, x, y, rv('A', x), rv('B', y), rv('C', 0), rv('D', 1), polySub);
+          polySub.push([x, y]);
+          noteSeg(cx, cy, x, y);
+          cx = x; cy = y; segs++;
+          break;
+        }
+        case 'Ellipse': {
+          polyOnly = false;
+          closeSub();
+          const ex = rv('X', 0), ey = rv('Y', 0), ax = rv('A', ex + 1), ay = rv('B', ey), bx = rv('C', ex), by = rv('D', ey + 1);
+          const rx = Math.hypot(ax - ex, ay - ey), ry = Math.hypot(bx - ex, by - ey);
+          const rot = Math.atan2(ay - ey, ax - ex) * 180 / Math.PI;
+          const ox = 2 * ex - ax, oy = 2 * ey - ay;
+          d += `M${f4(ax)} ${f4(ay)}A${f4(rx)} ${f4(ry)} ${f4(rot)} 1 1 ${f4(ox)} ${f4(oy)}A${f4(rx)} ${f4(ry)} ${f4(rot)} 1 1 ${f4(ax)} ${f4(ay)}Z`;
+          {
+            const rr = rot * Math.PI / 180, cr = Math.cos(rr), sr = Math.sin(rr), samp = [];
+            for (let i = 0; i < 48; i++) {
+              const th = (i / 48) * 2 * Math.PI;
+              samp.push([ex + rx * Math.cos(th) * cr - ry * Math.sin(th) * sr, ey + rx * Math.cos(th) * sr + ry * Math.sin(th) * cr]);
+            }
+            samp.push(samp[0]);
+            polyAll.push({ pts: samp, closed: true });
+          }
+          tangents.first = tangents.first || [ax, ay];
+          cx = sx = ax; cy = sy = ay; started = false; segs = 0; polySub = [];
+          break;
+        }
+        case 'RelCubBezTo': {
+          polyOnly = false;
+          const x = rv('X', 0) * W, y = rv('Y', 0) * H;
+          if (!started) { d += `M${f4(cx)} ${f4(cy)}`; started = true; sx = cx; sy = cy; noteMove(cx, cy); }
+          d += `C${f4(rv('A', 0) * W)} ${f4(rv('B', 0) * H)} ${f4(rv('C', 0) * W)} ${f4(rv('D', 0) * H)} ${f4(x)} ${f4(y)}`;
+          {
+            const b1 = [rv('A', 0) * W, rv('B', 0) * H], b2 = [rv('C', 0) * W, rv('D', 0) * H];
+            for (let i = 1; i <= 12; i++) {
+              const u = i / 12, v = 1 - u;
+              polySub.push([v * v * v * cx + 3 * v * v * u * b1[0] + 3 * v * u * u * b2[0] + u * u * u * x, v * v * v * cy + 3 * v * v * u * b1[1] + 3 * v * u * u * b2[1] + u * u * u * y]);
+            }
+          }
+          noteSeg(cx, cy, x, y);
+          cx = x; cy = y; segs++;
+          break;
+        }
+        case 'RelQuadBezTo': {
+          polyOnly = false;
+          const x = rv('X', 0) * W, y = rv('Y', 0) * H;
+          if (!started) { d += `M${f4(cx)} ${f4(cy)}`; started = true; sx = cx; sy = cy; noteMove(cx, cy); }
+          d += `Q${f4(rv('A', 0) * W)} ${f4(rv('B', 0) * H)} ${f4(x)} ${f4(y)}`;
+          noteSeg(cx, cy, x, y);
+          cx = x; cy = y; segs++;
+          break;
+        }
+        case 'NURBSTo': {
+          polyOnly = false;
+          const x = rv('X', 0), y = rv('Y', 0);
+          if (!started) { d += `M${f4(cx)} ${f4(cy)}`; started = true; sx = cx; sy = cy; noteMove(cx, cy); }
+          const pts = nurbsPoints([cx, cy], rf('E'), W, H);
+          if (pts) { for (const p of pts) { d += `L${f4(p[0])} ${f4(p[1])}`; polySub.push([p[0], p[1]]); } const lp = pts[pts.length - 1]; const pp = pts.length > 1 ? pts[pts.length - 2] : [cx, cy]; noteSeg(pp[0], pp[1], lp[0], lp[1]); cx = lp[0]; cy = lp[1]; }
+          else { d += `L${f4(x)} ${f4(y)}`; noteSeg(cx, cy, x, y); cx = x; cy = y; ctxNotes('yaklaşık', 'Bazı eğriler (NURBS) düz çizgiyle yaklaşık gösteriliyor.'); }
+          segs++;
+          break;
+        }
+        case 'PolylineTo': {
+          polyOnly = false;
+          const x = rv('X', 0), y = rv('Y', 0);
+          if (!started) { d += `M${f4(cx)} ${f4(cy)}`; started = true; sx = cx; sy = cy; noteMove(cx, cy); }
+          const a = numList(rf('A'), 'POLYLINE');
+          if (a && a.length >= 4) {
+            const xRel = a[0] === 1, yRel = a[1] === 1;
+            for (let i = 2; i + 1 < a.length; i += 2) {
+              const px = xRel ? a[i] * W : a[i], py = yRel ? a[i + 1] * H : a[i + 1];
+              d += `L${f4(px)} ${f4(py)}`; noteSeg(cx, cy, px, py); cx = px; cy = py;
+            }
+          } else { d += `L${f4(x)} ${f4(y)}`; noteSeg(cx, cy, x, y); cx = x; cy = y; }
+          segs++;
+          break;
+        }
+        case 'SplineStart': case 'SplineKnot': {
+          polyOnly = false;
+          const x = rv('X', 0), y = rv('Y', 0);
+          if (!started) { d += `M${f4(cx)} ${f4(cy)}`; started = true; sx = cx; sy = cy; noteMove(cx, cy); }
+          d += `L${f4(x)} ${f4(y)}`; noteSeg(cx, cy, x, y);
+          cx = x; cy = y; segs++;
+          ctxNotes('yaklaşık', 'Bazı eğriler (spline) düz çizgiyle yaklaşık gösteriliyor.');
+          break;
+        }
+        default:
+          break; // InfiniteLine vb. yok sayılır
+      }
+    }
+    closeSub();
+    if (!d) continue;
+    let finalD = d;
+    const rounding = node.num('Rounding', 0);
+    if (rounding > 0 && polyOnly && polyAll.length) {
+      const parts = polyAll.map((p) => {
+        const pts = p.closed ? p.pts.slice(0, -1) : p.pts;
+        return roundedPolyline(pts, p.closed, rounding);
+      });
+      if (parts.every(Boolean)) finalD = parts.join('');
+    }
+    out.push({ d: finalD, noFill: gv('NoFill', 0) !== 0, noLine: gv('NoLine', 0) !== 0, tangents, polys: polyAll });
+  }
+  return out;
+}
+
+/* ---------- çizgi / dolgu stili ---------- */
+const DASHES = {
+  2: [4, 3], 3: [1, 2], 4: [4, 2, 1, 2], 5: [4, 2, 1, 2, 1, 2], 6: [6, 3], 7: [8, 3], 8: [6, 2, 1, 2], 9: [8, 3, 1, 3],
+  10: [3, 1], 11: [3, 1, 1, 1], 12: [1, 1], 13: [6, 2, 1, 2], 14: [8, 2, 1, 2], 15: [9, 2, 1, 2, 1, 2], 16: [6, 6], 17: [3, 3], 18: [6, 3, 1, 3], 19: [6, 3, 3, 3], 20: [6, 3, 1, 3, 1, 3], 21: [9, 3, 3, 3], 22: [12, 3], 23: [12, 3, 2, 3],
+};
+
+function lineStyle(node) {
+  const pat = Math.round(node.num('LinePattern', 1));
+  let w = node.num('LineWeight', 0.01);
+  if (w <= 0) w = 0.004;
+  const color = colorOf(node.doc, node.str('LineColor', '0')) || '#000000';
+  const trans = node.num('LineColorTrans', 0);
+  const cap = Math.round(node.num('LineCap', 0));
+  return { pat, w, color, opacity: trans > 0 ? 1 - trans : 1, cap };
+}
+
+function applyStroke(el, ls) {
+  if (ls.pat === 0) { el.setAttribute('stroke', 'none'); return; }
+  el.setAttribute('stroke', ls.color);
+  el.setAttribute('stroke-width', f4(ls.w));
+  el.setAttribute('stroke-linejoin', 'round');
+  el.setAttribute('stroke-linecap', ls.cap === 1 ? 'round' : ls.cap === 2 ? 'square' : 'butt');
+  if (ls.opacity < 1) el.setAttribute('stroke-opacity', f4(ls.opacity));
+  if (ls.pat > 1 && DASHES[ls.pat]) {
+    const unit = Math.max(ls.w, 0.01);
+    el.setAttribute('stroke-dasharray', DASHES[ls.pat].map((v) => f4(v * unit)).join(' '));
+  }
+}
+
+function fillStyle(ctx, node) {
+  const pat = Math.round(node.num('FillPattern', 1));
+  if (pat === 0) return { none: true };
+  const fg = colorOf(node.doc, node.str('FillForegnd', '1')) || '#FFFFFF';
+  const bg = colorOf(node.doc, node.str('FillBkgnd', '1')) || '#FFFFFF';
+  const trans = node.num('FillForegndTrans', 0);
+  const grad = node.num('FillGradientEnabled', 0) !== 0;
+  const style = { fill: fg, opacity: trans > 0 ? 1 - trans : 1 };
+  if (grad) {
+    const id = 'vg' + (++ctx.gradN);
+    const dir = Math.round(node.num('FillGradientDir', 0));
+    const horizontal = dir === 1 || dir === 5;
+    const g = S('linearGradient', { id, x1: 0, y1: horizontal ? 0 : 1, x2: horizontal ? 1 : 0, y2: 0 }, [
+      S('stop', { offset: 0, 'stop-color': fg }), S('stop', { offset: 1, 'stop-color': bg }),
+    ]);
+    ctx.defs.appendChild(g);
+    style.fill = `url(#${id})`;
+  } else if (pat > 1 && pat < 25) {
+    ctx.note('yaklaşık', 'Desenli dolgular düz renkle yaklaşık gösteriliyor.');
+  } else if (pat >= 25) {
+    // gradyan benzeri desenler: iki rengi karıştır
+    const id = 'vg' + (++ctx.gradN);
+    ctx.defs.appendChild(S('linearGradient', { id, x1: 0, y1: 1, x2: 0, y2: 0 }, [
+      S('stop', { offset: 0, 'stop-color': fg }), S('stop', { offset: 1, 'stop-color': bg }),
+    ]));
+    style.fill = `url(#${id})`;
+    ctx.note('yaklaşık', 'Degrade dolgular iki renkli doğrusal geçişle yaklaşık gösteriliyor.');
+  }
+  return style;
+}
+
+/* ---------- ok uçları ---------- */
+function arrowShape(type, tip, ang, size, ls) {
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  const P = (u, v) => [tip[0] + u * ca - v * sa, tip[1] + u * sa + v * ca]; // u: ileri, v: yan
+  const L = size, Wd = size * 0.5;
+  const pt = (p) => `${f4(p[0])} ${f4(p[1])}`;
+  if (type === 1 || type === 15) { // açık V
+    const a = P(-L, Wd), b = P(-L, -Wd);
+    return S('path', { d: `M${pt(a)}L${pt(tip)}L${pt(b)}`, fill: 'none', stroke: ls.color, 'stroke-width': f4(ls.w), 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+  }
+  if (type === 10 || type === 20 || type === 23) { // daire
+    const c = P(-L * 0.5, 0);
+    return S('circle', { cx: f4(c[0]), cy: f4(c[1]), r: f4(L * 0.45), fill: ls.color });
+  }
+  if (type === 17 || type === 18 || type === 22) { // eşkenar dörtgen
+    const a = P(-L * 0.5, Wd), b = P(-L, 0), c = P(-L * 0.5, -Wd);
+    return S('path', { d: `M${pt(tip)}L${pt(a)}L${pt(b)}L${pt(c)}Z`, fill: ls.color });
+  }
+  if (type === 4 || type === 14) { // yarım ok (stealth)
+    const a = P(-L, Wd), m = P(-L * 0.7, 0), b = P(-L, -Wd);
+    return S('path', { d: `M${pt(tip)}L${pt(a)}L${pt(m)}L${pt(b)}Z`, fill: ls.color });
+  }
+  const a = P(-L, Wd), b = P(-L, -Wd);
+  return S('path', { d: `M${pt(tip)}L${pt(a)}L${pt(b)}Z`, fill: ls.color });
+}
+
+function arrowSize(idx, w) {
+  const mult = [1.6, 2.2, 3.2, 4.4, 6.0, 8.0, 10.0][Math.max(0, Math.min(6, idx))];
+  return Math.max(w * mult * 2, 0.035 * mult / 2 + 0.03);
+}
+
+/* ---------- metin ---------- */
+function charProps(node) {
+  const secs = node.sections('Character');
+  const sec = secs.get('0');
+  const row = sec ? (sec.rows.get('0') || [...sec.rows.values()][0]) : null;
+  const cell = (n) => (row ? row.cells.get(n) : null);
+  let size = node.entryNum(cell('Size'), 0.1111);
+  if (!(size > 0)) size = 0.1111;
+  const color = colorOf(node.doc, cell('Color') ? cell('Color').el.getAttribute('V') : '0') || '#000000';
+  const style = node.entryNum(cell('Style'), 0) | 0;
+  const faceId = cell('Font') ? cell('Font').el.getAttribute('V') : '0';
+  let face = node.doc.faces.get(faceId) || 'Calibri';
+  if (face === 'Themed') face = 'Calibri';
+  return { size, color, bold: !!(style & 1), italic: !!(style & 2), underline: !!(style & 4), family: `"${face}", ${FONT_FALLBACK}` };
+}
+
+function paraProps(node) {
+  const secs = node.sections('Paragraph');
+  const sec = secs.get('0');
+  const row = sec ? (sec.rows.get('0') || [...sec.rows.values()][0]) : null;
+  const e = row ? row.cells.get('HorzAlign') : null;
+  return { align: Math.round(node.entryNum(e, 1)) };
+}
+
+function wrapText(text, maxW, cp) {
+  const lines = [];
+  for (const para of text.split('\n')) {
+    if (para === '') { lines.push(''); continue; }
+    const words = para.split(/(\s+)/);
+    let cur = '';
+    for (const w of words) {
+      const trial = cur + w;
+      if (cur && measureText(trial.replace(/\s+$/, ''), cp.size, cp.bold, cp.italic, cp.family) > maxW) {
+        lines.push(cur.replace(/\s+$/, ''));
+        cur = w.replace(/^\s+/, '');
+      } else cur = trial;
+    }
+    lines.push(cur.replace(/\s+$/, ''));
+  }
+  return lines;
+}
+
+function renderText(ctx, node, text) {
+  if (!text || !text.trim()) return null;
+  if (node.num('HideText', 0) !== 0) return null;
+  const W = node.w, H = node.h;
+  const tw = node.num('TxtWidth', W), th = node.num('TxtHeight', H);
+  const tpx = node.num('TxtPinX', W / 2), tpy = node.num('TxtPinY', H / 2);
+  const tlx = node.num('TxtLocPinX', tw / 2), tly = node.num('TxtLocPinY', th / 2);
+  const tang = node.num('TxtAngle', 0);
+  const cp = charProps(node), pp = paraProps(node);
+  const lm = node.num('LeftMargin', 0.0556), rm = node.num('RightMargin', 0.0556);
+  const tm = node.num('TopMargin', 0.0556), bm = node.num('BottomMargin', 0.0556);
+  const va = Math.round(node.num('VerticalAlign', 1));
+  const avail = Math.max(tw - lm - rm, 0.05);
+  const lines = wrapText(text, avail, cp);
+  const lh = cp.size * 1.2;
+  const total = lines.length * lh;
+  let y0 = va === 0 ? tm : va === 2 ? th - bm - total : tm + (Math.max(th - tm - bm, 0) - total) / 2;
+  let anchor = 'middle', x = lm + avail / 2;
+  if (pp.align === 0) { anchor = 'start'; x = lm; } else if (pp.align === 2) { anchor = 'end'; x = lm + avail; }
+
+  let m = mTranslate(tpx, tpy);
+  if (node.flipX || node.flipY) m = mMul(m, mScale(node.flipX ? -1 : 1, node.flipY ? -1 : 1));
+  if (tang) m = mMul(m, mRotate(tang));
+  m = mMul(m, mTranslate(-tlx, -tly));
+  m = mMul(m, [1, 0, 0, -1, 0, th]); // metin çerçevesini Y aşağı yap
+  const g = S('g', { transform: `matrix(${m.map(f4).join(' ')})`, class: 'txt' });
+  const t = S('text', {
+    'font-size': f4(cp.size), 'font-family': cp.family, fill: cp.color,
+    'font-weight': cp.bold ? 'bold' : null, 'font-style': cp.italic ? 'italic' : null,
+    'text-decoration': cp.underline ? 'underline' : null, 'text-anchor': anchor, 'pointer-events': 'none',
+  });
+  lines.forEach((ln, i) => {
+    const ts = S('tspan', { x: f4(x), y: f4(y0 + i * lh + cp.size * 0.9) });
+    ts.textContent = ln === '' ? ' ' : ln;
+    t.appendChild(ts);
+  });
+  g.appendChild(t);
+  return g;
+}
+
+/* ---------- şekil çizimi ---------- */
+function layerHidden(ctx, node) {
+  if (!ctx.hiddenLayers.size) return false;
+  const lm = node.str('LayerMember', '');
+  if (!lm) return false;
+  const ids = lm.split(';').filter((s) => s !== '');
+  return ids.length > 0 && ids.every((i) => ctx.hiddenLayers.has(parseInt(i, 10)));
+}
+
+function localMatrix(node) {
+  let m = mTranslate(node.pinX, node.pinY);
+  if (node.angle) m = mMul(m, mRotate(node.angle));
+  if (node.flipX || node.flipY) m = mMul(m, mScale(node.flipX ? -1 : 1, node.flipY ? -1 : 1));
+  return mMul(m, mTranslate(-node.locX, -node.locY));
+}
+
+function renderForeign(ctx, node) {
+  const fd = kid(node.el, 'ForeignData');
+  if (!fd) return null;
+  const relEl = kid(fd, 'Rel');
+  const rid = relEl ? relEl.getAttributeNS(NS_R, 'id') : null;
+  const path = rid ? ctx.doc.relTarget(node.page, rid) : null;
+  const url = path ? ctx.doc.imageCache.get(path) : null;
+  const W = node.w, H = node.h;
+  const g = S('g', { transform: `translate(0 ${f4(H)}) scale(1 -1)` });
+  if (url) {
+    g.appendChild(S('image', { x: 0, y: 0, width: f4(W), height: f4(H), href: url, preserveAspectRatio: 'none' }));
+  } else {
+    ctx.note('uyarı', 'Gömülü EMF/WMF/OLE nesneleri gösterilemiyor (yer tutucu çizildi); kaydederken korunur.');
+    g.appendChild(S('rect', { x: 0, y: 0, width: f4(W), height: f4(H), fill: '#f0f0f0', stroke: '#999', 'stroke-width': 0.01, 'stroke-dasharray': '0.05 0.03' }));
+    g.appendChild(S('path', { d: `M0 0L${f4(W)} ${f4(H)}M${f4(W)} 0L0 ${f4(H)}`, stroke: '#bbb', 'stroke-width': 0.008, fill: 'none' }));
+  }
+  return g;
+}
+
+function renderNode(ctx, node, parent) {
+  if (node.type === 'Guide') return;
+  if (layerHidden(ctx, node)) return;
+  const lm = localMatrix(node);
+  const g = S('g', { 'data-sid': node.id, transform: `matrix(${lm.map(f4).join(' ')})` });
+  if (node.type === 'Group') g.setAttribute('data-group', '1');
+  const ls = lineStyle(node);
+  const geo = node.type === 'Foreign' ? [] : buildGeometry(node, ctx.note);
+  const fs = fillStyle(ctx, node);
+  let firstPathD = null;
+  for (const gp of geo) {
+    const p = S('path', { d: gp.d });
+    if (gp.noFill || fs.none) p.setAttribute('fill', 'none');
+    else {
+      p.setAttribute('fill', fs.fill);
+      p.setAttribute('fill-rule', 'evenodd');
+      if (fs.opacity < 1) p.setAttribute('fill-opacity', f4(fs.opacity));
+    }
+    if (gp.noLine) p.setAttribute('stroke', 'none'); else applyStroke(p, ls);
+    g.appendChild(p);
+    if (!firstPathD) firstPathD = gp.d;
+  }
+  // ok uçları
+  const beginArrow = Math.round(node.num('BeginArrow', 0));
+  const endArrow = Math.round(node.num('EndArrow', 0));
+  if ((beginArrow || endArrow) && geo.length && ls.pat !== 0) {
+    const tg = geo[0].tangents;
+    if (beginArrow && tg.first && tg.second) {
+      const ang = Math.atan2(tg.first[1] - tg.second[1], tg.first[0] - tg.second[0]);
+      g.appendChild(arrowShape(beginArrow, tg.first, ang, arrowSize(Math.round(node.num('BeginArrowSize', 2)), ls.w), ls));
+    }
+    if (endArrow && tg.last && tg.prev) {
+      const ang = Math.atan2(tg.last[1] - tg.prev[1], tg.last[0] - tg.prev[0]);
+      g.appendChild(arrowShape(endArrow, tg.last, ang, arrowSize(Math.round(node.num('EndArrowSize', 2)), ls.w), ls));
+    }
+  }
+  if (node.type === 'Foreign') {
+    const fgn = renderForeign(ctx, node);
+    if (fgn) g.appendChild(fgn);
+  }
+  for (const c of node.children) renderNode(ctx, c, g);
+  if (!ctx.noText) {
+    const tg = renderText(ctx, node, node.text());
+    if (tg) g.appendChild(tg);
+  }
+  if (!ctx.noHit && node.type !== 'Group') {
+    if (node.oneD && firstPathD) {
+      g.appendChild(S('path', { d: firstPathD, class: 'hit', fill: 'none', stroke: 'transparent', 'stroke-width': 0.12, 'pointer-events': 'stroke' }));
+    } else if (node.w > 0 && node.h > 0) {
+      g.appendChild(S('rect', { x: 0, y: 0, width: f4(node.w), height: f4(node.h), class: 'hit', fill: 'transparent', 'pointer-events': 'all' }));
+    } else if (firstPathD) {
+      g.appendChild(S('path', { d: firstPathD, class: 'hit', fill: 'none', stroke: 'transparent', 'stroke-width': 0.12, 'pointer-events': 'stroke' }));
+    }
+  }
+  parent.appendChild(g);
+}
+
+/* Sayfa içeriği: {g, defs} döndürür; node ağacını (re)kurar */
+function renderPageContent(doc, page, opts) {
+  opts = opts || {};
+  const hidden = new Set();
+  for (const l of doc.pageLayers(page)) if (!l.visible) hidden.add(l.ix);
+  if (opts.hiddenLayers) for (const i of opts.hiddenLayers) hidden.add(i);
+  const defs = S('defs');
+  const ctx = {
+    doc, defs, gradN: 0, hiddenLayers: hidden, noHit: !!opts.noHit, noText: !!opts.noText,
+    note: (k, t) => doc.note(k, t),
+  };
+  const g = S('g', { class: 'page-content' });
+  if (page.backPage) {
+    const bp = doc.pages.find((p) => p.id === page.backPage);
+    if (bp) {
+      const bg = S('g', { class: 'bg-page', 'pointer-events': 'none' });
+      const tree = doc.buildTree(bp);
+      for (const n of tree) renderNode({ ...ctx, noHit: true }, n, bg);
+      g.appendChild(bg);
+    }
+  }
+  const tree = doc.buildTree(page);
+  const body = S('g', { class: 'fg-page' });
+  for (const n of tree) renderNode(ctx, n, body);
+  g.appendChild(body);
+  page.renderCtx = ctx;
+  return { g, defs };
+}
+
+/* Bağımsız SVG dizgesi (dışa aktarma / küçük resim) */
+function pageToSVGString(doc, page, opts) {
+  opts = opts || {};
+  const { g, defs } = renderPageContent(doc, page, { noHit: true, noText: !!opts.noText });
+  const scale = opts.scale || 96;
+  const w = page.w * scale, h = page.h * scale;
+  const svg = S('svg', { xmlns: SVGNS, viewBox: `0 0 ${f4(w)} ${f4(h)}`, width: opts.fit ? '100%' : f4(w), height: opts.fit ? '100%' : f4(h) });
+  svg.appendChild(defs);
+  if (opts.background !== false) svg.appendChild(S('rect', { width: f4(w), height: f4(h), fill: '#ffffff' }));
+  const wrap = S('g', { transform: `translate(0 ${f4(h)}) scale(${scale} ${-scale})` });
+  wrap.appendChild(g);
+  svg.appendChild(wrap);
+  return new XMLSerializer().serializeToString(svg);
+}
+
+/* Düzenleme işlemleri: orijinal XML DOM'unu yerinde değiştirir.
+   Yalnızca dokunulan hücreler yazılır; geri kalan her şey olduğu gibi korunur. */
+'use strict';
+
+const XMLNS_ATTR = 'http://www.w3.org/2000/xmlns/';
+
+function mkEl(dom, tag, attrs) {
+  const el = dom.createElementNS(NS_V, tag);
+  if (attrs) for (const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+
+/* Visio şema sırası: Cell*, Section*, Text, Data*, ForeignData, Shapes */
+function insertInOrder(shapeEl, newEl, kindRank) {
+  const rank = (e) => {
+    const n = e.localName;
+    if (n === 'Cell') return 0;
+    if (n === 'Section') return 1;
+    if (n === 'Text') return 2;
+    if (n === 'Data1' || n === 'Data2' || n === 'Data3') return 3;
+    if (n === 'ForeignData') return 4;
+    if (n === 'Shapes') return 5;
+    return 6;
+  };
+  for (const c of shapeEl.children) {
+    if (rank(c) > kindRank) { shapeEl.insertBefore(newEl, c); return; }
+  }
+  shapeEl.appendChild(newEl);
+}
+
+function ensureCell(el, name) {
+  let c = findCell(el, name);
+  if (!c) {
+    c = mkEl(el.ownerDocument, 'Cell', { N: name });
+    // satır içinde (Row) ise sona ekle, şekil içindeyse sıraya göre
+    if (el.localName === 'Shape') insertInOrder(el, c, 0); else el.appendChild(c);
+  }
+  return c;
+}
+
+function setCell(el, name, value, keepF) {
+  const c = ensureCell(el, name);
+  c.setAttribute('V', String(value));
+  if (!keepF) c.removeAttribute('F');
+  return c;
+}
+
+function fmtNum(n) { return String(Math.round(n * 1e6) / 1e6); }
+
+function ensureSection(shapeEl, name, ix) {
+  for (const s of kids(shapeEl, 'Section')) {
+    if (s.getAttribute('N') === name && (s.getAttribute('IX') || '0') === String(ix)) return s;
+  }
+  const s = mkEl(shapeEl.ownerDocument, 'Section', { N: name, IX: String(ix) });
+  insertInOrder(shapeEl, s, 1);
+  return s;
+}
+
+function ensureRow(sec, ix) {
+  for (const r of kids(sec, 'Row')) if (r.getAttribute('IX') === String(ix)) return r;
+  const r = mkEl(sec.ownerDocument, 'Row', { IX: String(ix) });
+  sec.appendChild(r);
+  return r;
+}
+
+/* ---------- geri al / yinele ---------- */
+const History = {
+  undo: [], redo: [],
+  snap(doc, page) {
+    return { doc, page, xml: new XMLSerializer().serializeToString(page.dom) };
+  },
+  push(doc, page) {
+    this.undo.push(this.snap(doc, page));
+    if (this.undo.length > 100) this.undo.shift();
+    this.redo.length = 0;
+  },
+  restore(s) {
+    const dom = new DOMParser().parseFromString(s.xml, 'application/xml');
+    s.doc.dom.set(s.page.path, dom);
+    s.page.dom = dom;
+    s.doc.dirtyParts.add(s.page.path);
+  },
+  doUndo() {
+    const s = this.undo.pop();
+    if (!s) return null;
+    this.redo.push(this.snap(s.doc, s.page));
+    this.restore(s);
+    return s;
+  },
+  doRedo() {
+    const s = this.redo.pop();
+    if (!s) return null;
+    this.undo.push(this.snap(s.doc, s.page));
+    this.restore(s);
+    return s;
+  },
+  clear() { this.undo.length = 0; this.redo.length = 0; },
+};
+
+/* ---------- temel dönüşümler ---------- */
+function parentLinear(node) {
+  const m = node.parentM || M_ID;
+  return [m[0], m[1], m[2], m[3], 0, 0];
+}
+
+function moveNode(node, dxPage, dyPage) {
+  const inv = mInv(parentLinear(node));
+  const [dx, dy] = mApply(inv, dxPage, dyPage);
+  setCell(node.el, 'PinX', fmtNum(node.pinX + dx));
+  setCell(node.el, 'PinY', fmtNum(node.pinY + dy));
+}
+
+function setPagePos(node, pageX, pageY) {
+  // yerel kutunun merkezini sayfa koordinatına yerleştir
+  const c = mApply(node.M, node.w / 2, node.h / 2);
+  moveNode(node, pageX - c[0], pageY - c[1]);
+}
+
+function recomputeNode(node) {
+  node.computeBasics();
+  node.M = mMul(node.parentM || M_ID, localMatrix(node));
+  for (const c of node.children) { c.parentM = node.M; recomputeNode(c); }
+}
+
+/* Biçimlendirilmiş hücreleri yeni ölçülerle yeniden hesapla */
+function reevaluateFormulas(node) {
+  const ctxNode = node;
+  const evalCell = (cell) => {
+    const f = cell.getAttribute('F');
+    if (!f || f === 'Inh') return false;
+    try {
+      const v = evalFormula(f, ctxNode.formulaCtx());
+      cell.setAttribute('V', fmtNum(v));
+      return true;
+    } catch (e) { return false; }
+  };
+  const visit = (el) => {
+    for (const c of el.children) {
+      if (c.localName === 'Cell') {
+        const n = c.getAttribute('N');
+        if (n === 'Width' || n === 'Height') continue;
+        const f = c.getAttribute('F');
+        if (f && /Width|Height/.test(f)) evalCell(c);
+      } else if (c.localName === 'Section' || c.localName === 'Row') visit(c);
+    }
+  };
+  visit(node.el);
+}
+
+function scaleOwnGeometry(node, sx, sy) {
+  // formülü çözülemeyen yerel geometri hücrelerini orantılı ölçekle
+  for (const sec of kids(node.el, 'Section')) {
+    if (sec.getAttribute('N') !== 'Geometry') continue;
+    for (const row of kids(sec, 'Row')) {
+      const t = row.getAttribute('T') || '';
+      if (t.startsWith('Rel') || t === 'ArcTo') continue;
+      for (const c of kids(row, 'Cell')) {
+        const n = c.getAttribute('N');
+        const f = c.getAttribute('F');
+        if (f && f !== 'Inh' && /Width|Height/.test(f)) continue; // formül yeniden hesaplanacak
+        const v = parseFloat(c.getAttribute('V'));
+        if (!Number.isFinite(v)) continue;
+        const isXLike = n === 'X' || (n === 'A' && (t === 'EllipticalArcTo' || t === 'Ellipse')) || (n === 'C' && t === 'Ellipse');
+        const isYLike = n === 'Y' || (n === 'B' && (t === 'EllipticalArcTo' || t === 'Ellipse')) || (n === 'D' && t === 'Ellipse');
+        if (isXLike) { c.setAttribute('V', fmtNum(v * sx)); if (f) c.removeAttribute('F'); }
+        else if (isYLike) { c.setAttribute('V', fmtNum(v * sy)); if (f) c.removeAttribute('F'); }
+      }
+    }
+  }
+}
+
+function setNodeSize(node, newW, newH) {
+  newW = Math.max(newW, 0.01); newH = Math.max(newH, 0.01);
+  const sx = node.w > 0 ? newW / node.w : 1;
+  const sy = node.h > 0 ? newH / node.h : 1;
+  const old = { w: node.w, h: node.h };
+  setCell(node.el, 'Width', fmtNum(newW));
+  setCell(node.el, 'Height', fmtNum(newH));
+  // yerel geometri: önce orantılı ölçek (yalnız formülsüz), sonra formüller
+  scaleOwnGeometry(node, sx, sy);
+  // LocPin: orantıyı koru
+  const lx = findCell(node.el, 'LocPinX'), ly = findCell(node.el, 'LocPinY');
+  if (lx) { if (!(lx.getAttribute('F') && /Width/.test(lx.getAttribute('F')))) setCell(node.el, 'LocPinX', fmtNum(node.locX * sx)); }
+  else if (old.w) setCell(node.el, 'LocPinX', fmtNum(node.locX * sx));
+  if (ly) { if (!(ly.getAttribute('F') && /Height/.test(ly.getAttribute('F')))) setCell(node.el, 'LocPinY', fmtNum(node.locY * sy)); }
+  else if (old.h) setCell(node.el, 'LocPinY', fmtNum(node.locY * sy));
+  // metin kutusu hücreleri
+  for (const [n, k] of [['TxtWidth', sx], ['TxtPinX', sx], ['TxtLocPinX', sx], ['TxtHeight', sy], ['TxtPinY', sy], ['TxtLocPinY', sy]]) {
+    const c = findCell(node.el, n);
+    if (c && !(c.getAttribute('F') && /Width|Height/.test(c.getAttribute('F')))) {
+      const v = parseFloat(c.getAttribute('V'));
+      if (Number.isFinite(v)) { c.setAttribute('V', fmtNum(v * k)); c.removeAttribute('F'); }
+    }
+  }
+  reevaluateFormulas(node);
+  // alt şekiller
+  for (const ch of node.children) {
+    setCell(ch.el, 'PinX', fmtNum(ch.pinX * sx));
+    setCell(ch.el, 'PinY', fmtNum(ch.pinY * sy));
+    setNodeSize(ch, ch.w * sx, ch.h * sy);
+  }
+}
+
+/* Boyutlandır; (ax,ay) yerel oranlı noktayı sayfada sabit tut */
+function resizeKeepAnchor(node, newW, newH, ax, ay) {
+  const before = mApply(node.M, ax * node.w, ay * node.h);
+  setNodeSize(node, newW, newH);
+  recomputeNode(node);
+  const after = mApply(node.M, ax * node.w, ay * node.h);
+  moveNode(node, before[0] - after[0], before[1] - after[1]);
+  recomputeNode(node);
+}
+
+function setNodeAngle(node, rad) {
+  setCell(node.el, 'Angle', fmtNum(rad));
+}
+
+/* ---------- metin ---------- */
+function setNodeText(node, str) {
+  const dom = node.el.ownerDocument;
+  let t = kid(node.el, 'Text');
+  if (!t) { t = mkEl(dom, 'Text'); insertInOrder(node.el, t, 2); }
+  // ilk cp / pp işaretlerini koru, geri kalanı değiştir
+  const keep = [];
+  for (const c of [...t.childNodes]) {
+    if (c.nodeType === 1 && (c.localName === 'cp' || c.localName === 'pp' || c.localName === 'tp') && !keep.some((k) => k.localName === c.localName)) keep.push(c);
+  }
+  while (t.firstChild) t.removeChild(t.firstChild);
+  for (const k of keep) t.appendChild(k);
+  t.appendChild(dom.createTextNode(str));
+}
+
+function charRow(node, create) {
+  const sec = ensureSection(node.el, 'Character', 0);
+  return ensureRow(sec, 0);
+}
+function setCharCell(node, name, value) {
+  const row = charRow(node);
+  setCell(row, name, value);
+}
+function setCharStyleBit(node, bit, on) {
+  const cp = charProps(node);
+  const cur = (cp.bold ? 1 : 0) | (cp.italic ? 2 : 0) | (cp.underline ? 4 : 0);
+  const st = on ? (cur | bit) : (cur & ~bit);
+  setCharCell(node, 'Style', st);
+}
+function setParaAlign(node, a) {
+  const sec = ensureSection(node.el, 'Paragraph', 0);
+  setCell(ensureRow(sec, 0), 'HorzAlign', a);
+}
+
+/* ---------- stiller ---------- */
+function hexOk(c) { return /^#[0-9a-fA-F]{6}$/.test(c); }
+function setFillColor(node, hex) {
+  if (hex === null) { setCell(node.el, 'FillPattern', 0); return; }
+  setCell(node.el, 'FillPattern', 1);
+  setCell(node.el, 'FillForegnd', hex.toUpperCase());
+  setCell(node.el, 'FillGradientEnabled', 0);
+}
+function setLineColor(node, hex) {
+  if (hex === null) { setCell(node.el, 'LinePattern', 0); return; }
+  if (node.num('LinePattern', 1) === 0) setCell(node.el, 'LinePattern', 1);
+  setCell(node.el, 'LineColor', hex.toUpperCase());
+}
+
+/* ---------- şekil verisi (Property) ---------- */
+function propRows(node) {
+  const secs = node.sections('Property');
+  const out = [];
+  for (const [, sec] of secs) {
+    for (const r of node.sortedRows(sec)) {
+      const label = r.cells.get('Label') ? r.cells.get('Label').el.getAttribute('V') : (r.n || r.key);
+      const value = r.cells.get('Value') ? r.cells.get('Value').el.getAttribute('V') : '';
+      out.push({ key: r.key, name: r.n, label: label || r.n || r.key, value: value === null ? '' : value, secIx: sec.ix });
+    }
+  }
+  return out;
+}
+function setPropValue(node, secIx, key, name, value) {
+  const sec = ensureSection(node.el, 'Property', secIx);
+  let row = null;
+  for (const r of kids(sec, 'Row')) if ((r.getAttribute('IX') || r.getAttribute('N')) === key) row = r;
+  if (!row) {
+    row = mkEl(node.el.ownerDocument, 'Row');
+    if (name) row.setAttribute('N', name); else row.setAttribute('IX', key);
+    sec.appendChild(row);
+  }
+  setCell(row, 'Value', value);
+}
+
+/* ---------- kimlik ve ekleme ---------- */
+function allShapeEls(page) {
+  const out = [];
+  const walk = (parent) => {
+    const sh = kid(parent, 'Shapes');
+    if (!sh) return;
+    for (const s of kids(sh, 'Shape')) { out.push(s); walk(s); }
+  };
+  walk(page.dom.documentElement);
+  return out;
+}
+function nextShapeId(page) {
+  let max = 0;
+  for (const s of allShapeEls(page)) max = Math.max(max, parseInt(s.getAttribute('ID'), 10) || 0);
+  return max + 1;
+}
+function pageShapesEl(page) {
+  const root = page.dom.documentElement;
+  let sh = kid(root, 'Shapes');
+  if (!sh) {
+    sh = mkEl(page.dom, 'Shapes');
+    const connects = kid(root, 'Connects');
+    if (connects) root.insertBefore(sh, connects); else root.appendChild(sh);
+  }
+  return sh;
+}
+function pageConnectsEl(page) {
+  const root = page.dom.documentElement;
+  let c = kid(root, 'Connects');
+  if (!c) { c = mkEl(page.dom, 'Connects'); root.appendChild(c); }
+  return c;
+}
+
+function cellEl(dom, n, v, f) {
+  const c = mkEl(dom, 'Cell', { N: n, V: String(v) });
+  if (f) c.setAttribute('F', f);
+  return c;
+}
+function geoRow(dom, ix, t, cells) {
+  const r = mkEl(dom, 'Row', { T: t, IX: String(ix) });
+  for (const [n, v, f] of cells) r.appendChild(cellEl(dom, n, fmtNum(v), f));
+  return r;
+}
+
+function buildGeometrySection(dom, kind, W, H) {
+  const sec = mkEl(dom, 'Section', { N: 'Geometry', IX: '0' });
+  sec.appendChild(cellEl(dom, 'NoFill', 0));
+  sec.appendChild(cellEl(dom, 'NoLine', 0));
+  sec.appendChild(cellEl(dom, 'NoShow', 0));
+  sec.appendChild(cellEl(dom, 'NoSnap', 0));
+  sec.appendChild(cellEl(dom, 'NoQuickDrag', 0));
+  if (kind === 'ellipse') {
+    sec.appendChild(geoRow(dom, 1, 'Ellipse', [['X', W / 2, 'Width*0.5'], ['Y', H / 2, 'Height*0.5'], ['A', W, 'Width*1'], ['B', H / 2, 'Height*0.5'], ['C', W / 2, 'Width*0.5'], ['D', H, 'Height*1']]));
+  } else if (kind === 'diamond') {
+    sec.appendChild(geoRow(dom, 1, 'MoveTo', [['X', 0, 'Width*0'], ['Y', H / 2, 'Height*0.5']]));
+    sec.appendChild(geoRow(dom, 2, 'LineTo', [['X', W / 2, 'Width*0.5'], ['Y', H, 'Height*1']]));
+    sec.appendChild(geoRow(dom, 3, 'LineTo', [['X', W, 'Width*1'], ['Y', H / 2, 'Height*0.5']]));
+    sec.appendChild(geoRow(dom, 4, 'LineTo', [['X', W / 2, 'Width*0.5'], ['Y', 0, 'Height*0']]));
+    sec.appendChild(geoRow(dom, 5, 'LineTo', [['X', 0, 'Width*0'], ['Y', H / 2, 'Height*0.5']]));
+  } else {
+    sec.appendChild(geoRow(dom, 1, 'MoveTo', [['X', 0, 'Width*0'], ['Y', 0, 'Height*0']]));
+    sec.appendChild(geoRow(dom, 2, 'LineTo', [['X', W, 'Width*1'], ['Y', 0, 'Height*0']]));
+    sec.appendChild(geoRow(dom, 3, 'LineTo', [['X', W, 'Width*1'], ['Y', H, 'Height*1']]));
+    sec.appendChild(geoRow(dom, 4, 'LineTo', [['X', 0, 'Width*0'], ['Y', H, 'Height*1']]));
+    sec.appendChild(geoRow(dom, 5, 'LineTo', [['X', 0, 'Width*0'], ['Y', 0, 'Height*0']]));
+  }
+  return sec;
+}
+
+function addShape(page, kind, cx, cy, W, H, text) {
+  const dom = page.dom;
+  const id = nextShapeId(page);
+  const el = mkEl(dom, 'Shape', { ID: String(id), Type: 'Shape', LineStyle: '0', FillStyle: '0', TextStyle: '0' });
+  const isText = kind === 'text';
+  el.appendChild(cellEl(dom, 'PinX', fmtNum(cx)));
+  el.appendChild(cellEl(dom, 'PinY', fmtNum(cy)));
+  el.appendChild(cellEl(dom, 'Width', fmtNum(W)));
+  el.appendChild(cellEl(dom, 'Height', fmtNum(H)));
+  el.appendChild(cellEl(dom, 'LocPinX', fmtNum(W / 2), 'Width*0.5'));
+  el.appendChild(cellEl(dom, 'LocPinY', fmtNum(H / 2), 'Height*0.5'));
+  el.appendChild(cellEl(dom, 'Angle', 0));
+  el.appendChild(cellEl(dom, 'LineWeight', isText ? 0 : 0.0139));
+  el.appendChild(cellEl(dom, 'LineColor', '#333333'));
+  el.appendChild(cellEl(dom, 'LinePattern', isText ? 0 : 1));
+  el.appendChild(cellEl(dom, 'FillForegnd', '#FFFFFF'));
+  el.appendChild(cellEl(dom, 'FillPattern', isText ? 0 : 1));
+  if (kind === 'rounded') el.appendChild(cellEl(dom, 'Rounding', 0.12));
+  el.appendChild(cellEl(dom, 'TxtPinX', fmtNum(W / 2), 'Width*0.5'));
+  el.appendChild(cellEl(dom, 'TxtPinY', fmtNum(H / 2), 'Height*0.5'));
+  el.appendChild(cellEl(dom, 'TxtWidth', fmtNum(W), 'Width*1'));
+  el.appendChild(cellEl(dom, 'TxtHeight', fmtNum(H), 'Height*1'));
+  const ch = mkEl(dom, 'Section', { N: 'Character', IX: '0' });
+  const chr = mkEl(dom, 'Row', { IX: '0' });
+  chr.appendChild(cellEl(dom, 'Size', 0.1389));
+  chr.appendChild(cellEl(dom, 'Color', '#000000'));
+  ch.appendChild(chr);
+  el.appendChild(ch);
+  el.appendChild(buildGeometrySection(dom, kind === 'rounded' || isText ? 'rect' : kind, W, H));
+  if (text) { const t = mkEl(dom, 'Text'); t.appendChild(dom.createTextNode(text)); el.appendChild(t); }
+  pageShapesEl(page).appendChild(el);
+  return id;
+}
+
+/* ---------- silme / kopya / sıralama ---------- */
+function removeConnectsFor(page, id) {
+  const c = kid(page.dom.documentElement, 'Connects');
+  if (!c) return;
+  for (const x of kids(c, 'Connect')) {
+    if (x.getAttribute('FromSheet') === id || x.getAttribute('ToSheet') === id) c.removeChild(x);
+  }
+}
+function collectIds(el, out) {
+  out.push(el.getAttribute('ID'));
+  const sh = kid(el, 'Shapes');
+  if (sh) for (const s of kids(sh, 'Shape')) collectIds(s, out);
+  return out;
+}
+function deleteNode(page, node) {
+  const ids = collectIds(node.el, []);
+  for (const id of ids) removeConnectsFor(page, id);
+  node.el.parentNode.removeChild(node.el);
+}
+
+function renumberShape(page, el, counter) {
+  const map = new Map();
+  const walk = (e) => {
+    const old = e.getAttribute('ID');
+    const nid = String(counter.n++);
+    map.set(old, nid);
+    e.setAttribute('ID', nid);
+    const sh = kid(e, 'Shapes');
+    if (sh) for (const s of kids(sh, 'Shape')) walk(s);
+  };
+  walk(el);
+  return map;
+}
+
+function cloneNodes(page, nodes, dx, dy) {
+  const counter = { n: nextShapeId(page) };
+  const created = [];
+  const parentEl = pageShapesEl(page);
+  for (const n of nodes) {
+    if (n.parent) continue; // yalnız üst düzey şekiller
+    const copy = n.el.cloneNode(true);
+    renumberShape(page, copy, counter);
+    parentEl.appendChild(copy);
+    setCell(copy, 'PinX', fmtNum(parseNum(findCell(copy, 'PinX')?.getAttribute('V'), n.pinX) + dx));
+    setCell(copy, 'PinY', fmtNum(parseNum(findCell(copy, 'PinY')?.getAttribute('V'), n.pinY) + dy));
+    created.push(copy.getAttribute('ID'));
+  }
+  return created;
+}
+
+function bringToFront(node) { const p = node.el.parentNode; p.appendChild(node.el); }
+function sendToBack(node) { const p = node.el.parentNode; p.insertBefore(node.el, p.firstElementChild); }
+function stepForward(node) { const n = node.el.nextElementSibling; if (n) node.el.parentNode.insertBefore(n, node.el); }
+function stepBackward(node) { const p = node.el.previousElementSibling; if (p) node.el.parentNode.insertBefore(node.el, p); }
+
+/* ---------- hizalama ---------- */
+function alignNodes(nodes, mode) {
+  if (nodes.length < 2) return;
+  const bbs = nodes.map((n) => n.pageBBox());
+  const xs0 = Math.min(...bbs.map((b) => b.x0)), xs1 = Math.max(...bbs.map((b) => b.x1));
+  const ys0 = Math.min(...bbs.map((b) => b.y0)), ys1 = Math.max(...bbs.map((b) => b.y1));
+  nodes.forEach((n, i) => {
+    const b = bbs[i];
+    let dx = 0, dy = 0;
+    if (mode === 'left') dx = xs0 - b.x0;
+    else if (mode === 'right') dx = xs1 - b.x1;
+    else if (mode === 'center') dx = (xs0 + xs1) / 2 - (b.x0 + b.x1) / 2;
+    else if (mode === 'bottom') dy = ys0 - b.y0;
+    else if (mode === 'top') dy = ys1 - b.y1;
+    else if (mode === 'middle') dy = (ys0 + ys1) / 2 - (b.y0 + b.y1) / 2;
+    if (dx || dy) moveNode(n, dx, dy);
+  });
+}
+function distributeNodes(nodes, axis) {
+  if (nodes.length < 3) return;
+  const items = nodes.map((n) => ({ n, b: n.pageBBox() }));
+  const key0 = axis === 'h' ? 'x0' : 'y0', key1 = axis === 'h' ? 'x1' : 'y1';
+  items.sort((a, b) => (a.b[key0] + a.b[key1]) - (b.b[key0] + b.b[key1]));
+  const first = items[0].b, last = items[items.length - 1].b;
+  const totalSize = items.reduce((s, it) => s + (it.b[key1] - it.b[key0]), 0);
+  const span = last[key1] - first[key0];
+  const gap = (span - totalSize) / (items.length - 1);
+  let pos = first[key1] + gap;
+  for (let i = 1; i < items.length - 1; i++) {
+    const it = items[i];
+    const d = pos - it.b[key0];
+    if (axis === 'h') moveNode(it.n, d, 0); else moveNode(it.n, 0, d);
+    pos += (it.b[key1] - it.b[key0]) + gap;
+  }
+}
+
+/* ---------- bağlayıcılar ---------- */
+function geometryPolys(node) {
+  const g = buildGeometry(node, () => {});
+  const polys = [];
+  for (const gp of g) for (const p of gp.polys || []) if (p.pts.length >= 2) polys.push(p.pts);
+  return polys;
+}
+
+function boundaryPoint(target, towardX, towardY) {
+  const inv = mInv(target.M);
+  const [tx, ty] = mApply(inv, towardX, towardY);
+  const cx = target.w / 2, cy = target.h / 2;
+  const polys = geometryPolys(target);
+  let best = -1;
+  const dx = tx - cx, dy = ty - cy;
+  if (Math.hypot(dx, dy) < 1e-9) return mApply(target.M, cx, cy);
+  const tryEdge = (ax, ay, bx, by) => {
+    const ex = bx - ax, ey = by - ay;
+    const den = dx * ey - dy * ex;
+    if (Math.abs(den) < 1e-12) return;
+    const t = ((ax - cx) * ey - (ay - cy) * ex) / den;
+    const u = ((ax - cx) * dy - (ay - cy) * dx) / den;
+    if (t > 1e-9 && t <= 1.0000001 && u >= -1e-9 && u <= 1 + 1e-9) best = Math.max(best, t);
+  };
+  if (polys.length) {
+    for (const pts of polys) for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      tryEdge(a[0], a[1], b[0], b[1]);
+    }
+  } else {
+    const w = target.w, h = target.h;
+    tryEdge(0, 0, w, 0); tryEdge(w, 0, w, h); tryEdge(w, h, 0, h); tryEdge(0, h, 0, 0);
+  }
+  if (best < 0) return mApply(target.M, cx, cy);
+  return mApply(target.M, cx + dx * best, cy + dy * best);
+}
+
+function connectInfo(doc, page, id) {
+  const info = { begin: null, end: null };
+  for (const c of doc.getConnects(page)) {
+    if (c.getAttribute('FromSheet') !== id) continue;
+    const fc = c.getAttribute('FromCell');
+    const which = fc === 'BeginX' || fc === 'BeginY' ? 'begin' : fc === 'EndX' || fc === 'EndY' ? 'end' : null;
+    if (!which) continue;
+    info[which] = { sheet: c.getAttribute('ToSheet'), cell: c.getAttribute('ToCell') || 'PinX', part: c.getAttribute('ToPart') };
+  }
+  return info;
+}
+
+function connectionSite(target, cellName) {
+  const m = /^Connections\.X(\d+)$/.exec(cellName);
+  if (!m) return null;
+  const secs = target.sections('Connection');
+  for (const [, sec] of secs) {
+    const row = sec.rows.get(String(parseInt(m[1], 10) - 1));
+    if (row) {
+      const x = target.entryNum(row.cells.get('X'), NaN), y = target.entryNum(row.cells.get('Y'), NaN);
+      if (Number.isFinite(x) && Number.isFinite(y)) return mApply(target.M, x, y);
+    }
+  }
+  return null;
+}
+
+function connectorCurrentEnds(node) {
+  const bx = node.num('BeginX', NaN), by = node.num('BeginY', NaN), ex = node.num('EndX', NaN), ey = node.num('EndY', NaN);
+  const pm = node.parentM || M_ID;
+  const b = Number.isFinite(bx) ? mApply(pm, bx, by) : mApply(node.M, 0, node.h / 2);
+  const e = Number.isFinite(ex) ? mApply(pm, ex, ey) : mApply(node.M, node.w, node.h / 2);
+  return { b, e };
+}
+
+function simplifyRoute(pts) {
+  const out = [];
+  for (const p of pts) {
+    const last = out[out.length - 1];
+    if (last && Math.abs(last[0] - p[0]) < 1e-6 && Math.abs(last[1] - p[1]) < 1e-6) continue;
+    out.push(p);
+  }
+  for (let i = out.length - 2; i > 0; i--) {
+    const a = out[i - 1], b = out[i], c = out[i + 1];
+    const cross = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
+    if (Math.abs(cross) < 1e-9) out.splice(i, 1);
+  }
+  return out;
+}
+
+function connectorIsElbow(node) {
+  const secs = node.sections('Geometry');
+  let n = 0;
+  for (const [, sec] of secs) n += sec.rows.size;
+  return n > 2;
+}
+
+/* Bağlayıcıyı uç noktalarına göre yeniden çiz */
+function rerouteConnector(doc, page, conn, forceElbow) {
+  const info = connectInfo(doc, page, conn.id);
+  if (!info.begin && !info.end) return false;
+  const cur = connectorCurrentEnds(conn);
+  const tb = info.begin ? page.nodeMap.get(info.begin.sheet) : null;
+  const te = info.end ? page.nodeMap.get(info.end.sheet) : null;
+  let b = cur.b, e = cur.e;
+  const site = (t, inf) => (t && /^Connections\./.test(inf.cell) ? connectionSite(t, inf.cell) : null);
+  const sb = site(tb, info.begin || {}), se = site(te, info.end || {});
+  if (sb) b = sb;
+  if (se) e = se;
+  const centerOf = (t) => mApply(t.M, t.w / 2, t.h / 2);
+  if (tb && !sb) { const toward = se || (te ? centerOf(te) : cur.e); b = boundaryPoint(tb, toward[0], toward[1]); }
+  if (te && !se) { const toward = sb || (tb ? centerOf(tb) : cur.b); e = boundaryPoint(te, toward[0], toward[1]); }
+  const elbow = forceElbow !== undefined ? forceElbow : connectorIsElbow(conn);
+  let route = [b, e];
+  if (elbow) {
+    const dx = e[0] - b[0], dy = e[1] - b[1];
+    if (Math.abs(dx) >= Math.abs(dy)) { const mx = (b[0] + e[0]) / 2; route = [b, [mx, b[1]], [mx, e[1]], e]; }
+    else { const my = (b[1] + e[1]) / 2; route = [b, [b[0], my], [e[0], my], e]; }
+    route = simplifyRoute(route);
+  }
+  writeConnector(conn, route);
+  return true;
+}
+
+function writeConnector(conn, route) {
+  const el = conn.el;
+  const dom = el.ownerDocument;
+  const pm = conn.parentM || M_ID;
+  const ip = mInv(pm);
+  const loc = route.map((p) => mApply(ip, p[0], p[1])); // üst yerel koordinat
+  const b = loc[0], e = loc[loc.length - 1];
+  const ang = Math.atan2(e[1] - b[1], e[0] - b[0]);
+  const len = Math.hypot(e[0] - b[0], e[1] - b[1]);
+  const ca = Math.cos(-ang), sa = Math.sin(-ang);
+  const pts = loc.map((p) => [(p[0] - b[0]) * ca - (p[1] - b[1]) * sa, (p[0] - b[0]) * sa + (p[1] - b[1]) * ca]);
+  const hmax = Math.max(0, ...pts.map((p) => Math.abs(p[1])));
+  setCell(el, 'BeginX', fmtNum(b[0])); setCell(el, 'BeginY', fmtNum(b[1]));
+  setCell(el, 'EndX', fmtNum(e[0])); setCell(el, 'EndY', fmtNum(e[1]));
+  setCell(el, 'PinX', fmtNum(b[0])); setCell(el, 'PinY', fmtNum(b[1]));
+  setCell(el, 'Angle', fmtNum(ang));
+  setCell(el, 'Width', fmtNum(len));
+  setCell(el, 'Height', fmtNum(hmax));
+  setCell(el, 'LocPinX', 0); setCell(el, 'LocPinY', 0);
+  // geometri: yerel bölümleri kaldır, master mirasını sil bayrağıyla kapat
+  for (const s of kids(el, 'Section')) if (s.getAttribute('N') === 'Geometry') el.removeChild(s);
+  let ix = 0;
+  const inherited = conn.ms ? kids(conn.ms, 'Section').filter((s) => s.getAttribute('N') === 'Geometry') : [];
+  for (const s of inherited) {
+    const sx = parseInt(s.getAttribute('IX') || '0', 10);
+    const del = mkEl(dom, 'Section', { N: 'Geometry', IX: String(sx), Del: '1' });
+    insertInOrder(el, del, 1);
+    ix = Math.max(ix, sx + 1);
+  }
+  const sec = mkEl(dom, 'Section', { N: 'Geometry', IX: String(ix) });
+  sec.appendChild(cellEl(dom, 'NoFill', 1));
+  sec.appendChild(cellEl(dom, 'NoLine', 0));
+  pts.forEach((p, i) => sec.appendChild(geoRow(dom, i + 1, i === 0 ? 'MoveTo' : 'LineTo', [['X', p[0]], ['Y', p[1]]])));
+  insertInOrder(el, sec, 1);
+}
+
+function rerouteAllConnectors(doc, page) {
+  // ağacı yeniden kurmadan: yalnız bağlayıcı şekilleri
+  doc.buildTree(page);
+  const done = [];
+  for (const c of doc.getConnects(page)) {
+    const id = c.getAttribute('FromSheet');
+    if (done.includes(id)) continue;
+    done.push(id);
+    const node = page.nodeMap.get(id);
+    if (node) rerouteConnector(doc, page, node);
+  }
+  doc.buildTree(page);
+}
+
+function addConnector(doc, page, fromId, toId, elbow) {
+  doc.buildTree(page);
+  const a = page.nodeMap.get(fromId), b = page.nodeMap.get(toId);
+  if (!a || !b || a === b) return null;
+  const dom = page.dom;
+  const id = nextShapeId(page);
+  const el = mkEl(dom, 'Shape', { ID: String(id), Type: 'Shape', LineStyle: '0', FillStyle: '0', TextStyle: '0' });
+  const ca = mApply(a.M, a.w / 2, a.h / 2), cb = mApply(b.M, b.w / 2, b.h / 2);
+  for (const [n, v] of [['PinX', ca[0]], ['PinY', ca[1]], ['Width', 1], ['Height', 0], ['LocPinX', 0], ['LocPinY', 0], ['Angle', 0],
+    ['BeginX', ca[0]], ['BeginY', ca[1]], ['EndX', cb[0]], ['EndY', cb[1]],
+    ['LineWeight', 0.0139], ['LineColor', '#333333'], ['LinePattern', 1], ['EndArrow', 13], ['EndArrowSize', 2], ['FillPattern', 0], ['OneD', 1]]) {
+    el.appendChild(cellEl(dom, n, typeof v === 'number' ? fmtNum(v) : v));
+  }
+  el.appendChild(cellEl(dom, 'ObjType', 2));
+  const sec = mkEl(dom, 'Section', { N: 'Geometry', IX: '0' });
+  sec.appendChild(cellEl(dom, 'NoFill', 1));
+  sec.appendChild(cellEl(dom, 'NoLine', 0));
+  sec.appendChild(geoRow(dom, 1, 'MoveTo', [['X', 0], ['Y', 0]]));
+  sec.appendChild(geoRow(dom, 2, 'LineTo', [['X', 1], ['Y', 0]]));
+  el.appendChild(sec);
+  pageShapesEl(page).appendChild(el);
+  const cs = pageConnectsEl(page);
+  cs.appendChild(mkEl(dom, 'Connect', { FromSheet: String(id), FromCell: 'BeginX', FromPart: '9', ToSheet: fromId, ToCell: 'PinX', ToPart: '3' }));
+  cs.appendChild(mkEl(dom, 'Connect', { FromSheet: String(id), FromCell: 'EndX', FromPart: '12', ToSheet: toId, ToCell: 'PinX', ToPart: '3' }));
+  doc.buildTree(page);
+  const node = page.nodeMap.get(String(id));
+  rerouteConnector(doc, page, node, !!elbow);
+  doc.buildTree(page);
+  return String(id);
+}
+
+/* Yalnızca verilen şekillere bağlı bağlayıcıları yeniden çiz.
+   fast=true: ağacı yeniden kurmaz (düğümler yerinde güncellenir); yeniden çizilen bağlayıcı kimliklerini döndürür. */
+function rerouteConnectorsFor(doc, page, ids, fast) {
+  if (!fast) doc.buildTree(page);
+  const moved = new Set();
+  const collect = (n) => { moved.add(n.id); n.children.forEach(collect); };
+  for (const id of ids) { const n = page.nodeMap.get(id); if (n) collect(n); }
+  const done = new Set();
+  const out = [];
+  for (const c of doc.getConnects(page)) {
+    if (!moved.has(c.getAttribute('ToSheet'))) continue;
+    const fid = c.getAttribute('FromSheet');
+    if (done.has(fid) || moved.has(fid)) continue;
+    done.add(fid);
+    const cn = page.nodeMap.get(fid);
+    if (cn && rerouteConnector(doc, page, cn)) {
+      if (fast) recomputeNode(cn);
+      out.push(fid);
+    }
+  }
+  if (!fast) doc.buildTree(page);
+  return out;
+}
+
+/* Uygulama durumu, görünüm (yakınlaştırma/kaydırma), seçim katmanı ve etkileşimler */
+'use strict';
+
+const $ = (sel, root) => (root || document).querySelector(sel);
+const $$ = (sel, root) => [...(root || document).querySelectorAll(sel)];
+
+const App = {
+  doc: null, page: null, pageIdx: 0,
+  sel: [],                 // seçili şekil kimlikleri (aynı sayfa)
+  tool: 'select',
+  view: { x: 40, y: 40, z: 1 },
+  snap: true, grid: true, units: 'mm',
+  hiddenLayers: new Set(),
+  fileHandle: null, dirty: false,
+  space: false, hover: null,
+  clip: null,
+  minimap: true,
+};
+
+const UNIT_INFO = { in: { f: 1, d: 3, s: 'in' }, mm: { f: 25.4, d: 1, s: 'mm' }, cm: { f: 2.54, d: 2, s: 'cm' } };
+const toUnit = (inch) => inch * UNIT_INFO[App.units].f;
+const fromUnit = (v) => v / UNIT_INFO[App.units].f;
+const fmtU = (inch) => toUnit(inch).toFixed(UNIT_INFO[App.units].d);
+function gridSize() { return App.units === 'in' ? 0.25 : 5 / 25.4; }
+
+function toast(msg, kind) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = 'show ' + (kind || '');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { t.className = ''; }, kind === 'error' ? 7000 : 2800);
+}
+
+/* ---------- görünüm ---------- */
+function stageRect() { return $('#stage').getBoundingClientRect(); }
+
+function pageToScreen(x, y) {
+  const z = App.view.z * 96;
+  return [App.view.x + x * z, App.view.y + (App.page.h - y) * z];
+}
+function screenToPage(sx, sy) {
+  const z = App.view.z * 96;
+  return [(sx - App.view.x) / z, App.page.h - (sy - App.view.y) / z];
+}
+function eventPage(e) {
+  const r = stageRect();
+  return screenToPage(e.clientX - r.left, e.clientY - r.top);
+}
+
+function applyView() {
+  const vp = $('#vp');
+  if (vp) vp.setAttribute('transform', `translate(${App.view.x} ${App.view.y}) scale(${App.view.z})`);
+  const g = $('#gridRect');
+  if (g) g.style.display = App.grid && App.view.z * gridSize() * 96 > 6 ? '' : 'none';
+  $('#zoomLabel').textContent = Math.round(App.view.z * 100) + '%';
+  drawOverlay();
+  updateMinimapViewport();
+}
+
+function zoomAt(newZ, sx, sy) {
+  newZ = Math.max(0.03, Math.min(16, newZ));
+  const [px, py] = screenToPage(sx, sy);
+  App.view.z = newZ;
+  const z = newZ * 96;
+  App.view.x = sx - px * z;
+  App.view.y = sy - (App.page.h - py) * z;
+  applyView();
+}
+function zoomCenter(factor) {
+  const r = stageRect();
+  zoomAt(App.view.z * factor, r.width / 2, r.height / 2);
+}
+function fitPage(bboxInches) {
+  if (!App.page) return;
+  const r = stageRect();
+  const b = bboxInches || { x0: 0, y0: 0, x1: App.page.w, y1: App.page.h };
+  const w = (b.x1 - b.x0) * 96, h = (b.y1 - b.y0) * 96;
+  const margin = 48;
+  const z = Math.min((r.width - margin * 2) / Math.max(w, 1), (r.height - margin * 2) / Math.max(h, 1), 8);
+  App.view.z = Math.max(0.03, z);
+  const zz = App.view.z * 96;
+  App.view.x = (r.width - w * App.view.z) / 2 - b.x0 * zz;
+  App.view.y = (r.height - h * App.view.z) / 2 - (App.page.h - b.y1) * zz;
+  applyView();
+}
+
+/* ---------- sayfa çerçevesi + içerik ---------- */
+function setupFrame() {
+  const svg = $('#pageSvg');
+  const p = App.page;
+  const W = p.w * 96, H = p.h * 96;
+  const gs = gridSize() * 96;
+  svg.innerHTML = '';
+  const defs = S('defs', null, [
+    S('pattern', { id: 'gridPat', width: f4(gs), height: f4(gs), patternUnits: 'userSpaceOnUse' }, [
+      S('path', { d: `M${f4(gs)} 0H0V${f4(gs)}`, fill: 'none', stroke: 'var(--grid)', 'stroke-width': 1, 'vector-effect': 'non-scaling-stroke' }),
+    ]),
+  ]);
+  const vp = S('g', { id: 'vp' }, [
+    S('rect', { id: 'pageRect', x: 0, y: 0, width: f4(W), height: f4(H), fill: '#ffffff', stroke: 'var(--page-edge)', 'stroke-width': 1, 'vector-effect': 'non-scaling-stroke' }),
+    S('rect', { id: 'gridRect', x: 0, y: 0, width: f4(W), height: f4(H), fill: 'url(#gridPat)', 'pointer-events': 'none' }),
+    S('g', { id: 'flip', transform: `translate(0 ${f4(H)}) scale(96 -96)` }),
+  ]);
+  svg.append(defs, vp);
+}
+
+function renderPage() {
+  if (!App.doc || !App.page) return;
+  const { g, defs } = renderPageContent(App.doc, App.page, { hiddenLayers: App.hiddenLayers });
+  const flip = $('#flip');
+  flip.replaceChildren(defs, g);
+  // seçimde artık var olmayan kimlikleri ayıkla
+  App.sel = App.sel.filter((id) => App.page.nodeMap.has(id));
+  applyView();
+  scheduleMinimap();
+}
+
+function refreshAll() {
+  renderPage();
+  renderInspector();
+  renderShapeTree();
+  updateStatus();
+  updateUndoButtons();
+}
+
+/* ---------- seçim ---------- */
+function selNodes() { return App.sel.map((id) => App.page.nodeMap.get(id)).filter(Boolean); }
+function selectIds(ids, additive) {
+  App.sel = additive ? [...new Set([...App.sel, ...ids])] : ids.slice();
+  drawOverlay();
+  renderInspector();
+  highlightTree();
+  updateStatus();
+}
+function topAncestor(node) { let n = node; while (n.parent) n = n.parent; return n; }
+
+/* ---------- seçim katmanı (ekran pikseli) ---------- */
+const HANDLES = [
+  [0, 1], [0.5, 1], [1, 1], [1, 0.5], [1, 0], [0.5, 0], [0, 0], [0, 0.5],
+];
+
+function overlayEl() { return $('#overlay'); }
+
+function drawOverlay() {
+  const ov = overlayEl();
+  if (!ov) return;
+  ov.replaceChildren();
+  if (!App.doc || !App.page || !App.page.nodeMap) return;
+  const add = (el) => ov.appendChild(el);
+  // fare üzerindeki şekil
+  if (App.hover && !App.sel.includes(App.hover) && !drag) {
+    const hn = App.page.nodeMap.get(App.hover);
+    if (hn) add(S('path', { d: outlinePath(hn), class: 'hov' }));
+  }
+  const nodes = selNodes();
+  if (!nodes.length) return;
+  for (const n of nodes) add(S('path', { d: outlinePath(n), class: 'sel' }));
+  if (nodes.length === 1 && !drag?.hideHandles) {
+    const n = nodes[0];
+    if (n.oneD && !connectorHandlesWanted(n)) return;
+    const cs = HANDLES.map(([hx, hy]) => ({ hx, hy, p: pageToScreen(...mApply(n.M, hx * n.w, hy * n.h)) }));
+    // döndürme tutamacı
+    const top = pageToScreen(...mApply(n.M, n.w / 2, n.h));
+    const c = pageToScreen(...mApply(n.M, n.w / 2, n.h / 2));
+    const vx = top[0] - c[0], vy = top[1] - c[1];
+    const vl = Math.hypot(vx, vy) || 1;
+    const rp = [top[0] + vx / vl * 26, top[1] + vy / vl * 26];
+    add(S('line', { x1: top[0], y1: top[1], x2: rp[0], y2: rp[1], class: 'rotline' }));
+    add(S('circle', { cx: rp[0], cy: rp[1], r: 5.5, class: 'handle rot', 'data-handle': 'rot' }));
+    for (const h of cs) {
+      add(S('rect', { x: h.p[0] - 4.5, y: h.p[1] - 4.5, width: 9, height: 9, class: 'handle', 'data-handle': `${h.hx},${h.hy}`, style: `cursor:${handleCursor(h.hx, h.hy, n)}` }));
+    }
+  } else if (nodes.length > 1) {
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (const n of nodes) { const b = n.pageBBox(); x0 = Math.min(x0, b.x0); y0 = Math.min(y0, b.y0); x1 = Math.max(x1, b.x1); y1 = Math.max(y1, b.y1); }
+    const a = pageToScreen(x0, y1), b = pageToScreen(x1, y0);
+    add(S('rect', { x: a[0], y: a[1], width: b[0] - a[0], height: b[1] - a[1], class: 'multi' }));
+  }
+}
+
+function connectorHandlesWanted() { return false; }
+
+function handleCursor(hx, hy, n) {
+  const names = ['nesw-resize', 'ns-resize', 'nwse-resize', 'ew-resize'];
+  if (hx === 0.5) return 'ns-resize';
+  if (hy === 0.5) return 'ew-resize';
+  return (hx === hy) ? 'nesw-resize' : 'nwse-resize';
+}
+
+function outlinePath(n) {
+  const pts = [[0, 0], [n.w, 0], [n.w, n.h], [0, n.h]].map(([x, y]) => pageToScreen(...mApply(n.M, x, y)));
+  if (n.oneD && n.h < 0.02) {
+    // çizgi/bağlayıcı: yol boyunca
+    return 'M' + pts[0][0] + ' ' + pts[0][1] + 'L' + pts[1][0] + ' ' + pts[1][1];
+  }
+  return 'M' + pts.map((p) => p[0] + ' ' + p[1]).join('L') + 'Z';
+}
+
+/* ---------- etkileşim ---------- */
+let drag = null;
+let rafPending = false;
+function requestRender() {
+  if (rafPending) return;
+  rafPending = true;
+  requestAnimationFrame(() => { rafPending = false; renderPage(); drawOverlay(); renderInspectorValues(); });
+}
+
+/* Yalnızca değişen üst düzey şekilleri yeniden çiz (büyük sayfalarda hızlı) */
+let partialIds = new Set();
+let partialPending = false;
+function requestPartial(ids) {
+  for (const id of ids) partialIds.add(id);
+  if (partialPending) return;
+  partialPending = true;
+  requestAnimationFrame(() => {
+    partialPending = false;
+    const list = [...partialIds];
+    partialIds = new Set();
+    rerenderNodes(list);
+  });
+}
+function rerenderNodes(ids) {
+  const page = App.page;
+  if (!page || !page.renderCtx) { renderPage(); return; }
+  const tops = new Set();
+  for (const id of ids) { const n = page.nodeMap.get(id); if (n) tops.add(topAncestor(n)); }
+  for (const t of tops) {
+    const old = document.querySelector(`#flip .fg-page > [data-sid="${t.id}"]`);
+    const tmp = S('g');
+    renderNode(page.renderCtx, t, tmp);
+    const nw = tmp.firstChild;
+    if (old && nw) old.replaceWith(nw); else if (old) old.remove();
+  }
+  drawOverlay();
+  renderInspectorValues();
+  scheduleMinimap();
+}
+
+function hitChain(target) {
+  const chain = [];
+  let g = target.closest ? target.closest('#flip [data-sid]') : null;
+  while (g) {
+    chain.push(g.getAttribute('data-sid'));
+    g = g.parentElement ? g.parentElement.closest('[data-sid]') : null;
+  }
+  return chain; // [en iç ... en dış]
+}
+
+function startEditHistory() {
+  if (drag && !drag.historyDone) { History.push(App.doc, App.page); drag.historyDone = true; }
+}
+function markChanged() {
+  App.doc.markDirty(App.page);
+  App.dirty = true;
+  updateTitle();
+}
+
+function onStagePointerDown(e) {
+  if (!App.doc || e.target.closest('.floating, #dropzone')) return;
+  const r = stageRect();
+  const sx = e.clientX - r.left, sy = e.clientY - r.top;
+  const stage = $('#stage');
+  if (App.space || e.button === 1 || App.tool === 'hand') {
+    stage.setPointerCapture(e.pointerId);
+    drag = { type: 'pan', sx: e.clientX, sy: e.clientY, vx: App.view.x, vy: App.view.y };
+    stage.classList.add('panning');
+    e.preventDefault();
+    return;
+  }
+  if (e.button !== 0) return;
+  stage.setPointerCapture(e.pointerId);
+  const p = eventPage(e);
+  const handleEl = e.target.closest ? e.target.closest('[data-handle]') : null;
+  const tool = App.tool;
+
+  if (tool === 'select' && handleEl) {
+    const n = selNodes()[0];
+    if (!n) return;
+    const hv = handleEl.getAttribute('data-handle');
+    if (hv === 'rot') {
+      const c = mApply(n.M, n.w / 2, n.h / 2);
+      drag = { type: 'rotate', id: n.id, center: c, a0: Math.atan2(p[1] - c[1], p[0] - c[0]), ang0: n.angle };
+    } else {
+      const [hx, hy] = hv.split(',').map(Number);
+      drag = { type: 'resize', id: n.id, hx, hy, M0: n.M.slice(), w0: n.w, h0: n.h };
+    }
+    return;
+  }
+
+  if (tool === 'select') {
+    const chain = hitChain(e.target);
+    if (chain.length) {
+      const inner = e.altKey || e.ctrlKey || e.metaKey;
+      const id = inner ? chain[0] : chain[chain.length - 1];
+      if (e.shiftKey) {
+        App.sel = App.sel.includes(id) ? App.sel.filter((x) => x !== id) : [...App.sel, id];
+        selectIds(App.sel);
+      } else if (!App.sel.includes(id)) selectIds([id]);
+      const nodes = selNodes();
+      drag = {
+        type: 'move', start: p, moved: false,
+        items: nodes.map((n) => ({ id: n.id, pinX: n.pinX, pinY: n.pinY, lin: mInv(parentLinear(n)) })),
+      };
+    } else {
+      if (!e.shiftKey) selectIds([]);
+      drag = { type: 'marquee', start: p, sx, sy, base: e.shiftKey ? App.sel.slice() : [] };
+    }
+    return;
+  }
+
+  if (tool === 'conn' || tool === 'elbow') {
+    const chain = hitChain(e.target);
+    if (chain.length) {
+      const fromId = chain[chain.length - 1];
+      drag = { type: 'connect', from: fromId, elbow: tool === 'elbow', sx, sy, to: null };
+    }
+    return;
+  }
+
+  // çizim araçları
+  drag = { type: 'draw', kind: tool, start: p, sx, sy, cur: p };
+}
+
+function onStagePointerMove(e) {
+  if (!App.doc || !App.page) return;
+  const r = stageRect();
+  const sx = e.clientX - r.left, sy = e.clientY - r.top;
+  if (!drag) {
+    // fare üstü vurgu + koordinat
+    const [px, py] = screenToPage(sx, sy);
+    $('#coords').textContent = `X ${fmtU(px)}  Y ${fmtU(py)} ${UNIT_INFO[App.units].s}`;
+    if (App.tool === 'select') {
+      const chain = hitChain(e.target);
+      const id = chain.length ? chain[chain.length - 1] : null;
+      if (id !== App.hover) { App.hover = id; drawOverlay(); }
+    }
+    return;
+  }
+  const p = screenToPage(sx, sy);
+  if (drag.type === 'pan') {
+    App.view.x = drag.vx + (e.clientX - drag.sx);
+    App.view.y = drag.vy + (e.clientY - drag.sy);
+    applyView();
+    return;
+  }
+  if (drag.type === 'move') {
+    let dx = p[0] - drag.start[0], dy = p[1] - drag.start[1];
+    if (!drag.moved && Math.hypot(dx, dy) * 96 * App.view.z < 3) return;
+    if (!drag.moved) { drag.moved = true; startEditHistory(); }
+    if (e.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
+    if (App.snap && drag.items.length) {
+      // ilk öğenin merkezini ızgaraya oturt
+      const first = App.page.nodeMap.get(drag.items[0].id);
+      const c0 = mApply(first.M, first.w / 2, first.h / 2);
+      // orijinal merkez = şu anki merkez - uygulanmış delta
+      const applied = drag.applied || [0, 0];
+      const ox = c0[0] - applied[0], oy = c0[1] - applied[1];
+      const g = gridSize();
+      dx = Math.round((ox + dx) / g) * g - ox;
+      dy = Math.round((oy + dy) / g) * g - oy;
+    }
+    drag.applied = [dx, dy];
+    for (const it of drag.items) {
+      const n = App.page.nodeMap.get(it.id);
+      if (!n) continue;
+      const [lx, ly] = mApply(it.lin, dx, dy);
+      setCell(n.el, 'PinX', fmtNum(it.pinX + lx));
+      setCell(n.el, 'PinY', fmtNum(it.pinY + ly));
+      recomputeNode(n);
+    }
+    const ids = drag.items.map((it) => it.id);
+    const conns = rerouteConnectorsFor(App.doc, App.page, ids, true);
+    markChanged();
+    requestPartial([...ids, ...conns]);
+    return;
+  }
+  if (drag.type === 'resize') {
+    const n = App.page.nodeMap.get(drag.id);
+    if (!n) return;
+    startEditHistory();
+    const inv = mInv(drag.M0);
+    let [lx, ly] = mApply(inv, p[0], p[1]);
+    const ax = 1 - drag.hx, ay = 1 - drag.hy;
+    let w = drag.hx === 0.5 ? drag.w0 : (drag.hx === 1 ? lx - ax * drag.w0 : ax * drag.w0 - lx);
+    let h = drag.hy === 0.5 ? drag.h0 : (drag.hy === 1 ? ly - ay * drag.h0 : ay * drag.h0 - ly);
+    if (e.shiftKey && drag.hx !== 0.5 && drag.hy !== 0.5) {
+      const k = Math.max(w / drag.w0, h / drag.h0);
+      w = drag.w0 * k; h = drag.h0 * k;
+    }
+    if (App.snap) { const g = gridSize() / 2; if (drag.hx !== 0.5) w = Math.max(g, Math.round(w / g) * g); if (drag.hy !== 0.5) h = Math.max(g, Math.round(h / g) * g); }
+    w = Math.max(w, 0.03); h = Math.max(h, 0.03);
+    resizeKeepAnchor(n, w, h, ax, ay);
+    const conns = rerouteConnectorsFor(App.doc, App.page, [n.id], true);
+    markChanged();
+    requestPartial([n.id, ...conns]);
+    return;
+  }
+  if (drag.type === 'rotate') {
+    const n = App.page.nodeMap.get(drag.id);
+    if (!n) return;
+    startEditHistory();
+    const a = Math.atan2(p[1] - drag.center[1], p[0] - drag.center[0]);
+    let ang = drag.ang0 + (a - drag.a0);
+    if (e.shiftKey) { const step = Math.PI / 12; ang = Math.round(ang / step) * step; }
+    setNodeAngle(n, ang);
+    recomputeNode(n);
+    const conns = rerouteConnectorsFor(App.doc, App.page, [n.id], true);
+    markChanged();
+    requestPartial([n.id, ...conns]);
+    return;
+  }
+  if (drag.type === 'marquee') {
+    drag.cur = [sx, sy];
+    const ov = overlayEl();
+    drawOverlay();
+    ov.appendChild(S('rect', { x: Math.min(drag.sx, sx), y: Math.min(drag.sy, sy), width: Math.abs(sx - drag.sx), height: Math.abs(sy - drag.sy), class: 'marquee' }));
+    return;
+  }
+  if (drag.type === 'draw') {
+    drag.cur = p;
+    drawOverlay();
+    const a = pageToScreen(...drag.start), b = pageToScreen(...p);
+    overlayEl().appendChild(S(drag.kind === 'ellipse' ? 'ellipse' : 'rect', drag.kind === 'ellipse'
+      ? { cx: (a[0] + b[0]) / 2, cy: (a[1] + b[1]) / 2, rx: Math.abs(b[0] - a[0]) / 2, ry: Math.abs(b[1] - a[1]) / 2, class: 'ghost' }
+      : { x: Math.min(a[0], b[0]), y: Math.min(a[1], b[1]), width: Math.abs(b[0] - a[0]), height: Math.abs(b[1] - a[1]), class: 'ghost' }));
+    return;
+  }
+  if (drag.type === 'connect') {
+    const chain = hitChain(document.elementFromPoint(e.clientX, e.clientY) || e.target);
+    drag.to = chain.length ? chain[chain.length - 1] : null;
+    drawOverlay();
+    const a = App.page.nodeMap.get(drag.from);
+    const ca = a ? pageToScreen(...mApply(a.M, a.w / 2, a.h / 2)) : [sx, sy];
+    const ov = overlayEl();
+    ov.appendChild(S('line', { x1: ca[0], y1: ca[1], x2: sx, y2: sy, class: 'ghost' }));
+    if (drag.to && drag.to !== drag.from) ov.appendChild(S('path', { d: outlinePath(App.page.nodeMap.get(drag.to)), class: 'sel' }));
+    return;
+  }
+}
+
+function onStagePointerUp(e) {
+  const stage = $('#stage');
+  try { stage.releasePointerCapture(e.pointerId); } catch (err) { /* yok say */ }
+  stage.classList.remove('panning');
+  if (!drag) return;
+  const d = drag;
+  drag = null;
+  if (d.type === 'move' || d.type === 'resize' || d.type === 'rotate') {
+    if (d.historyDone) {
+      App.doc.buildTree(App.page);   // düğümleri DOM'dan tazele
+      drawOverlay(); renderInspector(); updateStatus(); updateUndoButtons(); scheduleMinimap();
+    }
+    return;
+  }
+  if (d.type === 'marquee') {
+    const r = stageRect();
+    const sx = e.clientX - r.left, sy = e.clientY - r.top;
+    const a = screenToPage(Math.min(d.sx, sx), Math.max(d.sy, sy)), b = screenToPage(Math.max(d.sx, sx), Math.min(d.sy, sy));
+    if (Math.abs(sx - d.sx) > 3 || Math.abs(sy - d.sy) > 3) {
+      const ids = App.page.tree.filter((n) => { const bb = n.pageBBox(); return bb.x0 >= a[0] && bb.x1 <= b[0] && bb.y0 >= a[1] && bb.y1 <= b[1]; }).map((n) => n.id);
+      selectIds([...new Set([...d.base, ...ids])]);
+    }
+    drawOverlay();
+    return;
+  }
+  if (d.type === 'draw') {
+    const kind = d.kind;
+    const dist = Math.hypot(d.cur[0] - d.start[0], d.cur[1] - d.start[1]) * 96 * App.view.z;
+    let x0, y0, x1, y1;
+    if (dist < 6) {
+      const w = kind === 'text' ? 1.6 : 1.5, h = kind === 'text' ? 0.4 : (kind === 'diamond' ? 1.1 : 1.0);
+      x0 = d.start[0] - w / 2; x1 = d.start[0] + w / 2; y0 = d.start[1] - h / 2; y1 = d.start[1] + h / 2;
+    } else {
+      x0 = Math.min(d.start[0], d.cur[0]); x1 = Math.max(d.start[0], d.cur[0]);
+      y0 = Math.min(d.start[1], d.cur[1]); y1 = Math.max(d.start[1], d.cur[1]);
+    }
+    if (App.snap) { const g = gridSize(); x0 = Math.round(x0 / g) * g; x1 = Math.max(x0 + g, Math.round(x1 / g) * g); y0 = Math.round(y0 / g) * g; y1 = Math.max(y0 + g, Math.round(y1 / g) * g); }
+    History.push(App.doc, App.page);
+    const id = addShape(App.page, kind, (x0 + x1) / 2, (y0 + y1) / 2, x1 - x0, y1 - y0, '');
+    markChanged();
+    App.doc.buildTree(App.page);
+    App.sel = [String(id)];
+    setTool('select');
+    refreshAll();
+    drawOverlay();
+    startTextEdit(String(id));
+    return;
+  }
+  if (d.type === 'connect') {
+    drawOverlay();
+    const upChain = hitChain(document.elementFromPoint(e.clientX, e.clientY) || e.target);
+    if (upChain.length) d.to = upChain[upChain.length - 1];
+    if (d.to && d.to !== d.from) {
+      History.push(App.doc, App.page);
+      const id = addConnector(App.doc, App.page, d.from, d.to, d.elbow);
+      markChanged();
+      App.sel = id ? [id] : [];
+      refreshAll();
+    }
+    return;
+  }
+}
+
+function onStageDblClick(e) {
+  if (!App.doc || App.tool !== 'select') return;
+  if (e.target.closest('.floating')) return;
+  const chain = hitChain(document.elementFromPoint(e.clientX, e.clientY) || e.target);
+  if (!chain.length) return;
+  const id = chain[0];
+  selectIds([id]);
+  startTextEdit(id);
+}
+
+function onStageWheel(e) {
+  if (!App.doc) return;
+  e.preventDefault();
+  const r = stageRect();
+  if (e.ctrlKey || e.metaKey) {
+    const f = Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0022));
+    zoomAt(App.view.z * f, e.clientX - r.left, e.clientY - r.top);
+  } else {
+    const k = e.deltaMode === 1 ? 24 : 1;
+    if (e.shiftKey) App.view.x -= (e.deltaY || e.deltaX) * k; else { App.view.x -= e.deltaX * k; App.view.y -= e.deltaY * k; }
+    applyView();
+  }
+}
+
+/* ---------- metin düzenleme ---------- */
+let textEditor = null;
+function startTextEdit(id) {
+  const n = App.page.nodeMap.get(id);
+  if (!n) return;
+  endTextEdit(true);
+  const b = n.pageBBox();
+  const a = pageToScreen(b.x0, b.y1), c = pageToScreen(b.x1, b.y0);
+  const ta = document.createElement('textarea');
+  ta.id = 'textEditor';
+  const w = Math.max(c[0] - a[0], 90), h = Math.max(c[1] - a[1], 28);
+  const cx = (a[0] + c[0]) / 2, cy = (a[1] + c[1]) / 2;
+  Object.assign(ta.style, { left: (cx - w / 2) + 'px', top: (cy - h / 2) + 'px', width: w + 'px', height: h + 'px' });
+  const cp = charProps(n);
+  ta.style.fontSize = Math.max(11, cp.size * 96 * App.view.z) + 'px';
+  ta.style.fontFamily = cp.family;
+  ta.value = n.text();
+  $('#stage').appendChild(ta);
+  ta.focus(); ta.select();
+  textEditor = { ta, id, orig: ta.value };
+  ta.addEventListener('keydown', (ev) => {
+    ev.stopPropagation();
+    if (ev.key === 'Escape') { endTextEdit(false); }
+    else if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { endTextEdit(true); }
+  });
+  ta.addEventListener('blur', () => endTextEdit(true));
+}
+function endTextEdit(commit) {
+  if (!textEditor) return;
+  const { ta, id, orig } = textEditor;
+  textEditor = null;
+  const val = ta.value;
+  ta.remove();
+  if (commit && val !== orig && App.page.nodeMap.has(id)) {
+    History.push(App.doc, App.page);
+    setNodeText(App.page.nodeMap.get(id), val);
+    markChanged();
+    refreshAll();
+  }
+}
+
+/* ---------- araçlar ---------- */
+function setTool(t) {
+  App.tool = t;
+  $$('#toolbar [data-tool]').forEach((b) => b.classList.toggle('active', b.dataset.tool === t));
+  const cur = { select: 'default', hand: 'grab', rect: 'crosshair', rounded: 'crosshair', ellipse: 'crosshair', diamond: 'crosshair', text: 'text', conn: 'crosshair', elbow: 'crosshair' }[t] || 'default';
+  $('#stage').style.cursor = cur;
+}
+
+/* ---------- düzenleme komutları ---------- */
+function editSelected(fn, opts) {
+  const nodes = selNodes();
+  if (!nodes.length) return;
+  History.push(App.doc, App.page);
+  const ids = nodes.map((n) => n.id);
+  fn(nodes);
+  markChanged();
+  if (opts && opts.partial) {
+    for (const n of nodes) recomputeNode(n);
+    const conns = opts.reroute ? rerouteConnectorsFor(App.doc, App.page, ids, true) : [];
+    rerenderNodes([...ids, ...conns]);
+    updateUndoButtons(); updateStatus();
+    return;
+  }
+  if (opts && opts.reroute) rerouteConnectorsFor(App.doc, App.page, ids);
+  App.doc.buildTree(App.page);
+  refreshAll();
+}
+
+function deleteSelection() {
+  const nodes = selNodes();
+  if (!nodes.length) return;
+  History.push(App.doc, App.page);
+  for (const n of nodes) if (n.el.parentNode) deleteNode(App.page, n);
+  markChanged();
+  App.sel = [];
+  App.doc.buildTree(App.page);
+  refreshAll();
+}
+
+function copySelection(cut) {
+  const nodes = selNodes().filter((n) => !n.parent);
+  if (!nodes.length) return;
+  const ser = new XMLSerializer();
+  App.clip = { docName: App.doc.name, docRef: App.doc, xml: nodes.map((n) => ser.serializeToString(n.el)) };
+  toast(nodes.length + ' şekil kopyalandı');
+  if (cut) deleteSelection();
+}
+function pasteClipboard(offset) {
+  if (!App.clip) return;
+  History.push(App.doc, App.page);
+  const counter = { n: nextShapeId(App.page) };
+  const parent = pageShapesEl(App.page);
+  const ids = [];
+  const off = offset === undefined ? 0.25 : offset;
+  let warned = false;
+  for (const xml of App.clip.xml) {
+    const dom = new DOMParser().parseFromString(`<Shapes xmlns="${NS_V}">${xml.replace(/ xmlns="[^"]*"/g, '')}</Shapes>`, 'application/xml');
+    const el = App.page.dom.importNode(dom.documentElement.firstElementChild, true);
+    if (App.clip.docRef !== App.doc && el.getAttribute('Master') && !warned) { warned = true; toast('Başka belgeden yapıştırılan master tabanlı şekiller sadeleşebilir.', 'warn'); }
+    renumberShape(App.page, el, counter);
+    parent.appendChild(el);
+    const px = parseNum(findCell(el, 'PinX')?.getAttribute('V'), 0), py = parseNum(findCell(el, 'PinY')?.getAttribute('V'), 0);
+    setCell(el, 'PinX', fmtNum(px + off)); setCell(el, 'PinY', fmtNum(py - off));
+    ids.push(el.getAttribute('ID'));
+  }
+  markChanged();
+  App.doc.buildTree(App.page);
+  App.sel = ids;
+  refreshAll();
+  App.clip.xml = App.clip.xml; // aynı kopya art arda yapıştırılabilir
+}
+function duplicateSelection() {
+  const nodes = selNodes().filter((n) => !n.parent);
+  if (!nodes.length) return;
+  History.push(App.doc, App.page);
+  const ids = cloneNodes(App.page, nodes, 0.25, -0.25);
+  markChanged();
+  App.doc.buildTree(App.page);
+  App.sel = ids;
+  refreshAll();
+}
+
+function doUndo(redo) {
+  const s = redo ? History.doRedo() : History.doUndo();
+  if (!s) return;
+  if (s.page !== App.page) { App.page = s.page; App.pageIdx = App.doc.pages.indexOf(s.page); setupFrame(); renderPageList(); }
+  App.doc.buildTree(App.page);
+  App.dirty = true; updateTitle();
+  refreshAll();
+}
+function updateUndoButtons() {
+  const u = $('#btnUndo'), r = $('#btnRedo');
+  if (u) u.disabled = !History.undo.length;
+  if (r) r.disabled = !History.redo.length;
+}
+
+function nudge(dx, dy) {
+  const nodes = selNodes();
+  if (!nodes.length) return;
+  History.push(App.doc, App.page);
+  const ids = nodes.map((n) => n.id);
+  for (const n of nodes) { moveNode(n, dx, dy); recomputeNode(n); }
+  markChanged();
+  const conns = rerouteConnectorsFor(App.doc, App.page, ids, true);
+  rerenderNodes([...ids, ...conns]);
+  updateUndoButtons();
+}
+
+/* ---------- klavye ---------- */
+function onKey(e) {
+  const tag = (e.target.tagName || '').toLowerCase();
+  const typing = tag === 'input' || tag === 'textarea' || tag === 'select';
+  const mod = e.ctrlKey || e.metaKey;
+  if (e.key === ' ' && !typing) { App.space = true; $('#stage').style.cursor = 'grab'; e.preventDefault(); return; }
+  if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); if (App.doc) saveFile(e.shiftKey); return; }
+  if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); openFileDialog(); return; }
+  if (mod && e.key.toLowerCase() === 'f') { e.preventDefault(); $('#searchInput').focus(); $('#searchInput').select(); return; }
+  if (typing) return;
+  if (!App.doc) return;
+  if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); doUndo(e.shiftKey); return; }
+  if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); doUndo(true); return; }
+  if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); selectIds(App.page.tree.map((n) => n.id)); return; }
+  if (mod && e.key.toLowerCase() === 'c') { e.preventDefault(); copySelection(false); return; }
+  if (mod && e.key.toLowerCase() === 'x') { e.preventDefault(); copySelection(true); return; }
+  if (mod && e.key.toLowerCase() === 'v') { e.preventDefault(); pasteClipboard(); return; }
+  if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateSelection(); return; }
+  if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelection(); return; }
+  if (e.key === 'Escape') { selectIds([]); setTool('select'); return; }
+  if (e.key === 'F2' || e.key === 'Enter') { if (App.sel.length === 1) { e.preventDefault(); startTextEdit(App.sel[0]); } return; }
+  if (e.key.startsWith('Arrow')) {
+    e.preventDefault();
+    const step = (e.shiftKey ? 10 : 1) * (App.snap ? gridSize() / (e.shiftKey ? 1 : 5) : 0.01);
+    const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+    const dy = e.key === 'ArrowDown' ? -step : e.key === 'ArrowUp' ? step : 0;
+    nudge(dx, dy);
+    return;
+  }
+  if (!mod) {
+    const map = { v: 'select', h: 'hand', r: 'rect', o: 'ellipse', d: 'diamond', t: 'text', c: 'conn' };
+    const k = e.key.toLowerCase();
+    if (map[k]) { setTool(map[k]); return; }
+    if (e.key === '+' || e.key === '=') { zoomCenter(1.25); return; }
+    if (e.key === '-') { zoomCenter(0.8); return; }
+    if (k === 'f') { fitPage(); return; }
+    if (e.key === '1') { zoomAt(1, stageRect().width / 2, stageRect().height / 2); return; }
+  }
+}
+function onKeyUp(e) {
+  if (e.key === ' ' && App.space) { App.space = false; setTool(App.tool); }
+}
+
+/* Paneller: sayfalar, şekil ağacı, katmanlar, özellikler, arama, dosya işlemleri, başlatma */
+'use strict';
+
+const esc = (s) => String(s === null || s === undefined ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* ---------- simgeler ---------- */
+const ICONS = {
+  open: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  save: '<path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h7V3M8 21v-7h8v7"/>',
+  saveas: '<path d="M5 3h11l3 3v7"/><path d="M8 3v6h7V3"/><path d="M5 3v18h8"/><path d="M17 15v6M14 18h6"/>',
+  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
+  redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/>',
+  select: '<path d="m5 3 14 8-6 2-3 6z"/>',
+  hand: '<path d="M8 12V6a1.5 1.5 0 0 1 3 0v5V4.5a1.5 1.5 0 0 1 3 0V11V6a1.5 1.5 0 0 1 3 0v8a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-3l-2-4a1.5 1.5 0 0 1 2.5-1.5L8 14"/>',
+  rect: '<rect x="4" y="6" width="16" height="12"/>',
+  rounded: '<rect x="4" y="6" width="16" height="12" rx="4"/>',
+  ellipse: '<ellipse cx="12" cy="12" rx="8" ry="6"/>',
+  diamond: '<path d="M12 4 21 12 12 20 3 12z"/>',
+  text: '<path d="M5 6V4h14v2M12 4v16M9 20h6"/>',
+  conn: '<circle cx="5" cy="18" r="2"/><circle cx="19" cy="6" r="2"/><path d="M7 17 17 7"/>',
+  elbow: '<circle cx="5" cy="18" r="2"/><circle cx="19" cy="6" r="2"/><path d="M7 18h5V6h5"/>',
+  zoomin: '<circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5M11 8v6M8 11h6"/>',
+  zoomout: '<circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5M8 11h6"/>',
+  fit: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+  search: '<circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/>',
+  theme: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+  grid: '<path d="M4 4h16v16H4zM4 9.3h16M4 14.7h16M9.3 4v16M14.7 4v16"/>',
+  snap: '<path d="M6 4v8a6 6 0 0 0 12 0V4M6 8h4M14 8h4"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  copy: '<rect x="8" y="8" width="12" height="12"/><path d="M4 16V4h12"/>',
+  front: '<rect x="4" y="4" width="10" height="10"/><rect x="10" y="10" width="10" height="10" fill="currentColor" fill-opacity=".25"/>',
+  back: '<rect x="10" y="10" width="10" height="10"/><rect x="4" y="4" width="10" height="10" fill="currentColor" fill-opacity=".25"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 1-1 1.7M12 17h.01"/>',
+  image: '<rect x="4" y="5" width="16" height="14"/><circle cx="9" cy="10" r="1.5"/><path d="m4 17 5-4 4 3 3-2 4 3"/>',
+  file: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  alignL: '<path d="M4 4v16M8 7h12M8 14h8"/>', alignC: '<path d="M12 4v16M5 7h14M7 14h10"/>', alignR: '<path d="M20 4v16M4 7h12M8 14h8"/>',
+  alignT: '<path d="M4 4h16M7 8v12M14 8v8"/>', alignM: '<path d="M4 12h16M7 5v14M14 8v8"/>', alignB: '<path d="M4 20h16M7 4v12M14 8v8"/>',
+  distH: '<path d="M4 4v16M20 4v16M10 8h4v8h-4z"/>', distV: '<path d="M4 4h16M4 20h16M8 10v4h8v-4z"/>',
+};
+function icon(name) { return `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ''}</svg>`; }
+
+/* ---------- sayfa listesi ---------- */
+function renderPageList() {
+  const box = $('#pageList');
+  if (!App.doc) { box.innerHTML = ''; return; }
+  box.innerHTML = '';
+  App.doc.pages.forEach((p, i) => {
+    const item = document.createElement('div');
+    item.className = 'page-item' + (i === App.pageIdx ? ' active' : '');
+    item.innerHTML = `<div class="thumb" data-thumb="${i}"></div><div class="pname">${esc(p.name)}${p.background ? ' <i>(arka plan)</i>' : ''}</div>`;
+    item.onclick = () => openPage(i);
+    box.appendChild(item);
+  });
+  // küçük resimleri sırayla üret
+  let i = 0;
+  const step = () => {
+    if (!App.doc || i >= Math.min(App.doc.pages.length, 60)) return;
+    const idx = i++;
+    const slot = box.querySelector(`[data-thumb="${idx}"]`);
+    if (slot) {
+      try {
+        slot.innerHTML = pageToSVGString(App.doc, App.doc.pages[idx], { fit: true, noText: App.doc.pages[idx].tree ? false : false });
+      } catch (e) { slot.textContent = '—'; }
+    }
+    setTimeout(step, 0);
+  };
+  setTimeout(step, 30);
+}
+
+function openPage(i) {
+  if (!App.doc) return;
+  endTextEdit(true);
+  App.pageIdx = i;
+  App.page = App.doc.pages[i];
+  App.sel = [];
+  App.hover = null;
+  setupFrame();
+  App.doc.buildTree(App.page);
+  renderPage();
+  fitPage();
+  renderInspector(); renderShapeTree(); renderLayers(); updateStatus();
+  $$('#pageList .page-item').forEach((el, k) => el.classList.toggle('active', k === i));
+  $('#minimap').style.display = App.minimap ? '' : 'none';
+}
+
+/* ---------- şekil ağacı ---------- */
+function nodeLabel(n) {
+  const nm = n.el.getAttribute('NameU') || n.el.getAttribute('Name');
+  const tx = n.text().replace(/\s+/g, ' ').trim();
+  let label = tx ? tx.slice(0, 28) : (nm || (n.type === 'Group' ? 'Grup' : n.oneD ? 'Bağlayıcı' : 'Şekil'));
+  if (tx && nm && nm !== tx) label += '  ·  ' + nm;
+  return label;
+}
+
+function renderShapeTree() {
+  const box = $('#shapeTree');
+  if (!App.doc || !App.page || !App.page.tree) { box.innerHTML = ''; return; }
+  let count = 0;
+  const parts = [];
+  const walk = (list, depth) => {
+    for (const n of list) {
+      if (count++ > 700) return;
+      parts.push(`<div class="tnode${App.sel.includes(n.id) ? ' on' : ''}" data-id="${esc(n.id)}" style="padding-left:${8 + depth * 14}px"><span class="tid">${esc(n.id)}</span>${esc(nodeLabel(n))}</div>`);
+      if (n.children.length) walk(n.children, depth + 1);
+    }
+  };
+  walk(App.page.tree, 0);
+  if (count > 700) parts.push('<div class="muted pad">… liste kısaltıldı (700 şekil)</div>');
+  if (!parts.length) parts.push('<div class="muted pad">Bu sayfada şekil yok.</div>');
+  box.innerHTML = parts.join('');
+}
+function highlightTree() {
+  $$('#shapeTree .tnode').forEach((el) => el.classList.toggle('on', App.sel.includes(el.dataset.id)));
+}
+
+/* ---------- katmanlar ---------- */
+function renderLayers() {
+  const box = $('#layerList');
+  if (!App.doc || !App.page) { box.innerHTML = ''; return; }
+  const layers = App.doc.pageLayers(App.page);
+  if (!layers.length) { box.innerHTML = '<div class="muted pad">Bu sayfada katman tanımı yok.</div>'; return; }
+  box.innerHTML = layers.map((l) => `<label class="layer"><input type="checkbox" data-layer="${l.ix}" ${App.hiddenLayers.has(l.ix) ? '' : 'checked'}> ${esc(l.name)}</label>`).join('')
+    + '<div class="muted pad">Görünürlük yalnızca bu oturumdaki görünümü etkiler; dosyaya yazılmaz.</div>';
+}
+
+/* ---------- özellikler paneli ---------- */
+const ARROWS = [[0, 'Yok'], [13, 'Üçgen'], [4, 'Ok ucu'], [1, 'Açık'], [10, 'Daire'], [17, 'Eşkenar dörtgen']];
+const PATTERNS = [[0, 'Yok'], [1, 'Düz'], [2, 'Kesik'], [3, 'Noktalı'], [4, 'Kesik-nokta'], [5, 'Kesik-nokta-nokta']];
+
+function opts(list, cur) {
+  let html = '';
+  let found = false;
+  for (const [v, t] of list) { if (Number(v) === Number(cur)) found = true; html += `<option value="${v}"${Number(v) === Number(cur) ? ' selected' : ''}>${t}</option>`; }
+  if (!found) html = `<option value="${cur}" selected>Özel (${cur})</option>` + html;
+  return html;
+}
+
+function inspectorForSingle(n) {
+  const un = UNIT_INFO[App.units].s;
+  const fill = n.num('FillPattern', 1);
+  const fillC = colorOf(n.doc, n.str('FillForegnd', '1')) || '#ffffff';
+  const linePat = n.num('LinePattern', 1);
+  const lineC = colorOf(n.doc, n.str('LineColor', '0')) || '#000000';
+  const lw = n.num('LineWeight', 0.01) * 72;
+  const cp = charProps(n), pp = paraProps(n);
+  const props = propRows(n);
+  const nm = n.el.getAttribute('NameU') || n.el.getAttribute('Name') || '';
+  const kind = n.type === 'Group' ? 'Grup' : n.oneD ? 'Bağlayıcı / çizgi' : n.type === 'Foreign' ? 'Resim / nesne' : 'Şekil';
+  return `
+  <div class="insp-head"><b>${kind}</b> <span class="muted">#${esc(n.id)}${nm ? ' · ' + esc(nm) : ''}</span></div>
+  <div class="sec"><h4>Konum ve boyut <i class="muted">(${un})</i></h4>
+    <div class="grid2">
+      <label>X<input data-f="x" type="number" step="any"></label><label>Y<input data-f="y" type="number" step="any"></label>
+      <label>Genişlik<input data-f="w" type="number" step="any"></label><label>Yükseklik<input data-f="h" type="number" step="any"></label>
+      <label>Açı (°)<input data-f="a" type="number" step="any"></label>
+    </div></div>
+  <div class="sec"><h4>Dolgu</h4>
+    <div class="row"><input type="color" data-f="fillColor" value="${fillC}"><label class="chk"><input type="checkbox" data-f="fillNone" ${fill === 0 ? 'checked' : ''}> Dolgu yok</label></div></div>
+  <div class="sec"><h4>Çizgi</h4>
+    <div class="row"><input type="color" data-f="lineColor" value="${lineC}"><label class="chk"><input type="checkbox" data-f="lineNone" ${linePat === 0 ? 'checked' : ''}> Çizgi yok</label></div>
+    <div class="grid2">
+      <label>Kalınlık (pt)<input data-f="lineW" type="number" step="0.25" min="0" value="${(Math.round(lw * 100) / 100)}"></label>
+      <label>Desen<select data-f="linePat">${opts(PATTERNS, linePat)}</select></label>
+      <label>Başlangıç oku<select data-f="arrB">${opts(ARROWS, Math.round(n.num('BeginArrow', 0)))}</select></label>
+      <label>Bitiş oku<select data-f="arrE">${opts(ARROWS, Math.round(n.num('EndArrow', 0)))}</select></label>
+    </div></div>
+  <div class="sec"><h4>Metin</h4>
+    <textarea data-f="text" rows="3" placeholder="Şekil metni">${esc(n.text())}</textarea>
+    <div class="row wrap">
+      <label class="inl">Boyut <input data-f="fontSize" type="number" min="1" step="0.5" value="${Math.round(cp.size * 72 * 10) / 10}" style="width:56px"> pt</label>
+      <input type="color" data-f="textColor" value="${cp.color}" title="Metin rengi">
+      <button class="mini${cp.bold ? ' on' : ''}" data-act="bold" title="Kalın"><b>K</b></button>
+      <button class="mini${cp.italic ? ' on' : ''}" data-act="italic" title="İtalik"><i>İ</i></button>
+      <button class="mini${cp.underline ? ' on' : ''}" data-act="underline" title="Altı çizili"><u>A</u></button>
+      <button class="mini${pp.align === 0 ? ' on' : ''}" data-act="alignL" title="Sola">${icon('alignL')}</button>
+      <button class="mini${pp.align === 1 ? ' on' : ''}" data-act="alignC" title="Ortala">${icon('alignC')}</button>
+      <button class="mini${pp.align === 2 ? ' on' : ''}" data-act="alignR" title="Sağa">${icon('alignR')}</button>
+    </div></div>
+  <div class="sec"><h4>Sıralama ve işlemler</h4>
+    <div class="row wrap">
+      <button class="btn sm" data-act="front">${icon('front')}Öne getir</button>
+      <button class="btn sm" data-act="back">${icon('back')}Arkaya gönder</button>
+      <button class="btn sm" data-act="dup">${icon('copy')}Çoğalt</button>
+      <button class="btn sm danger" data-act="del">${icon('trash')}Sil</button>
+    </div></div>
+  <div class="sec"><h4>Şekil verisi</h4>
+    ${props.length ? `<table class="props">${props.map((p, i) => `<tr><td>${esc(p.label)}</td><td><input data-prop="${i}" value="${esc(p.value)}"></td></tr>`).join('')}</table>` : '<div class="muted">Bu şekilde veri alanı yok.</div>'}
+  </div>`;
+}
+
+function inspectorForMulti(nodes) {
+  return `
+  <div class="insp-head"><b>${nodes.length} şekil seçili</b></div>
+  <div class="sec"><h4>Hizala</h4>
+    <div class="row wrap">
+      ${['alignL:left:Sola', 'alignC:center:Yatay ortala', 'alignR:right:Sağa', 'alignT:top:Üste', 'alignM:middle:Dikey ortala', 'alignB:bottom:Alta'].map((s) => { const [i, m, t] = s.split(':'); return `<button class="mini" data-align="${m}" title="${t}">${icon(i)}</button>`; }).join('')}
+      <button class="mini" data-dist="h" title="Yatay eşit dağıt">${icon('distH')}</button>
+      <button class="mini" data-dist="v" title="Dikey eşit dağıt">${icon('distV')}</button>
+    </div></div>
+  <div class="sec"><h4>Dolgu ve çizgi</h4>
+    <div class="row"><input type="color" data-f="fillColor" value="#ffffff" title="Dolgu rengi"><label class="chk"><input type="checkbox" data-f="fillNone"> Dolgu yok</label></div>
+    <div class="row"><input type="color" data-f="lineColor" value="#333333" title="Çizgi rengi"><label class="chk"><input type="checkbox" data-f="lineNone"> Çizgi yok</label></div></div>
+  <div class="sec"><div class="row wrap">
+      <button class="btn sm" data-act="dup">${icon('copy')}Çoğalt</button>
+      <button class="btn sm danger" data-act="del">${icon('trash')}Sil</button></div></div>`;
+}
+
+function inspectorForNone() {
+  const d = App.doc;
+  let shapes = 0;
+  for (const p of d.pages) shapes += p.dom.getElementsByTagNameNS(NS_V, 'Shape').length;
+  const notes = d.report.length
+    ? `<ul class="notes">${d.report.map((r) => `<li class="${r.kind}">${esc(r.text)}</li>`).join('')}</ul>`
+    : '<div class="muted">Desteklenmeyen öğe bulunmadı.</div>';
+  return `
+  <div class="insp-head"><b>Belge</b></div>
+  <div class="sec"><div class="kv"><span>Dosya</span><b>${esc(d.name)}</b></div>
+    <div class="kv"><span>Sayfa</span><b>${d.pages.length}</b></div>
+    <div class="kv"><span>Şekil (tüm sayfalar)</span><b>${shapes}</b></div>
+    <div class="kv"><span>Master</span><b>${d.masters.size}</b></div>
+    <div class="kv"><span>Sayfa boyutu</span><b>${fmtU(App.page.w)} × ${fmtU(App.page.h)} ${UNIT_INFO[App.units].s}</b></div></div>
+  <div class="sec"><h4>Görüntüleme notları</h4>${notes}</div>
+  <div class="sec"><h4>İpuçları</h4><div class="muted tips">Şekle tıklayın · çift tıklayarak metni düzenleyin · tutamaçlarla boyutlandırın/döndürün · Ctrl+tıklama grup içindeki şekli seçer · boşluk+sürükleme kaydırır · Ctrl+tekerlek yakınlaştırır · <kbd>?</kbd> tüm kısayollar.</div></div>`;
+}
+
+function renderInspector() {
+  const box = $('#inspector');
+  if (!App.doc || !App.page) { box.innerHTML = ''; return; }
+  const nodes = selNodes();
+  if (!nodes.length) box.innerHTML = inspectorForNone();
+  else if (nodes.length === 1) box.innerHTML = inspectorForSingle(nodes[0]);
+  else box.innerHTML = inspectorForMulti(nodes);
+  renderInspectorValues();
+}
+
+function renderInspectorValues() {
+  const nodes = selNodes();
+  if (nodes.length !== 1) return;
+  const n = nodes[0];
+  const set = (f, v) => { const el = $(`#inspector [data-f="${f}"]`); if (el && document.activeElement !== el) el.value = v; };
+  const d = UNIT_INFO[App.units].d;
+  set('x', toUnit(n.pinX).toFixed(d)); set('y', toUnit(n.pinY).toFixed(d));
+  set('w', toUnit(n.w).toFixed(d)); set('h', toUnit(n.h).toFixed(d));
+  set('a', (n.angle * 180 / Math.PI).toFixed(2));
+}
+
+function onInspectorChange(e) {
+  const t = e.target;
+  const f = t.dataset.f;
+  if (t.dataset.prop !== undefined) {
+    const n = selNodes()[0];
+    const row = propRows(n)[Number(t.dataset.prop)];
+    if (row) editSelected(() => setPropValue(n, row.secIx, row.key, row.name, t.value));
+    return;
+  }
+  if (!f) return;
+  const val = t.type === 'checkbox' ? t.checked : t.value;
+  const nodes = selNodes();
+  if (!nodes.length) return;
+  const num = parseFloat(val);
+  switch (f) {
+    case 'x': case 'y': if (Number.isFinite(num)) editSelected(([n]) => { setCell(n.el, f === 'x' ? 'PinX' : 'PinY', fmtNum(fromUnit(num))); }, { reroute: true, partial: true }); break;
+    case 'w': case 'h': if (Number.isFinite(num) && num > 0) editSelected(([n]) => {
+      const w = f === 'w' ? fromUnit(num) : n.w, h = f === 'h' ? fromUnit(num) : n.h;
+      resizeKeepAnchor(n, w, h, 0.5, 0.5);
+    }, { reroute: true, partial: true }); break;
+    case 'a': if (Number.isFinite(num)) editSelected(([n]) => setNodeAngle(n, num * Math.PI / 180), { reroute: true, partial: true }); break;
+    case 'fillColor': editSelected((ns) => ns.forEach((n) => setFillColor(n, val)), { partial: true }); break;
+    case 'fillNone': editSelected((ns) => ns.forEach((n) => setFillColor(n, val ? null : (colorOf(n.doc, n.str('FillForegnd', '1')) || '#FFFFFF'))), { partial: true }); break;
+    case 'lineColor': editSelected((ns) => ns.forEach((n) => setLineColor(n, val)), { partial: true }); break;
+    case 'lineNone': editSelected((ns) => ns.forEach((n) => setLineColor(n, val ? null : (colorOf(n.doc, n.str('LineColor', '0')) || '#333333'))), { partial: true }); break;
+    case 'lineW': if (Number.isFinite(num) && num >= 0) editSelected(([n]) => setCell(n.el, 'LineWeight', fmtNum(num / 72)), { partial: true }); break;
+    case 'linePat': editSelected(([n]) => setCell(n.el, 'LinePattern', val), { partial: true }); break;
+    case 'arrB': editSelected(([n]) => setCell(n.el, 'BeginArrow', val), { partial: true }); break;
+    case 'arrE': editSelected(([n]) => setCell(n.el, 'EndArrow', val), { partial: true }); break;
+    case 'text': editSelected(([n]) => setNodeText(n, val), { partial: true }); break;
+    case 'fontSize': if (Number.isFinite(num) && num > 0) editSelected(([n]) => setCharCell(n, 'Size', fmtNum(num / 72)), { partial: true }); break;
+    case 'textColor': editSelected(([n]) => setCharCell(n, 'Color', val.toUpperCase()), { partial: true }); break;
+    default: break;
+  }
+}
+
+function onInspectorClick(e) {
+  const b = e.target.closest('button');
+  if (!b) return;
+  const act = b.dataset.act;
+  if (b.dataset.align) { editSelected((ns) => alignNodes(ns, b.dataset.align), { reroute: true, partial: true }); return; }
+  if (b.dataset.dist) { editSelected((ns) => distributeNodes(ns, b.dataset.dist), { reroute: true, partial: true }); return; }
+  if (!act) return;
+  if (act === 'del') return deleteSelection();
+  if (act === 'dup') return duplicateSelection();
+  if (act === 'front') return editSelected(([n]) => bringToFront(n));
+  if (act === 'back') return editSelected(([n]) => sendToBack(n));
+  if (act === 'bold') return editSelected(([n]) => setCharStyleBit(n, 1, !charProps(n).bold), { partial: true });
+  if (act === 'italic') return editSelected(([n]) => setCharStyleBit(n, 2, !charProps(n).italic), { partial: true });
+  if (act === 'underline') return editSelected(([n]) => setCharStyleBit(n, 4, !charProps(n).underline), { partial: true });
+  if (act === 'alignL') return editSelected(([n]) => setParaAlign(n, 0), { partial: true });
+  if (act === 'alignC') return editSelected(([n]) => setParaAlign(n, 1), { partial: true });
+  if (act === 'alignR') return editSelected(([n]) => setParaAlign(n, 2), { partial: true });
+}
+
+/* ---------- durum çubuğu / başlık ---------- */
+function updateStatus() {
+  const el = $('#selInfo');
+  if (!App.doc) { el.textContent = ''; return; }
+  const n = selNodes();
+  if (!n.length) el.textContent = `Sayfa ${App.pageIdx + 1}/${App.doc.pages.length} · ${App.page.name}`;
+  else if (n.length === 1) el.textContent = `Şekil #${n[0].id} · ${fmtU(n[0].w)} × ${fmtU(n[0].h)} ${UNIT_INFO[App.units].s}`;
+  else el.textContent = `${n.length} şekil seçili`;
+}
+function updateTitle() {
+  const name = App.doc ? App.doc.name : 'Dosya açılmadı';
+  $('#fileName').textContent = name + (App.dirty ? ' •' : '');
+  document.title = (App.doc ? name + (App.dirty ? ' *' : '') + ' — ' : '') + 'VisViewer';
+  $('#btnSave').disabled = !App.doc; $('#btnSaveAs').disabled = !App.doc;
+}
+
+/* ---------- mini harita ---------- */
+let mmTimer = null;
+function scheduleMinimap() {
+  clearTimeout(mmTimer);
+  mmTimer = setTimeout(renderMinimap, App.page && App.page.nodeMap && App.page.nodeMap.size > 800 ? 900 : 250);
+}
+function renderMinimap() {
+  if (!App.doc || !App.page) return;
+  const box = $('#mmPage');
+  const pw = App.page.w, ph = App.page.h;
+  const maxW = 176, maxH = 120;
+  const k = Math.min(maxW / pw, maxH / ph);
+  const w = Math.round(pw * k), h = Math.round(ph * k);
+  box.style.width = w + 'px'; box.style.height = h + 'px';
+  try { box.innerHTML = pageToSVGString(App.doc, App.page, { fit: true, noText: true }); } catch (e) { box.innerHTML = ''; }
+  App.doc.buildTree(App.page);
+  updateMinimapViewport();
+}
+function updateMinimapViewport() {
+  const vp = $('#mmVp'), box = $('#mmPage');
+  if (!App.page || !vp) return;
+  const r = stageRect();
+  const [x0, y1] = screenToPage(0, 0), [x1, y0] = screenToPage(r.width, r.height);
+  const bw = box.clientWidth, bh = box.clientHeight;
+  const sx = bw / App.page.w, sy = bh / App.page.h;
+  const l = Math.max(0, x0 * sx), t = Math.max(0, (App.page.h - y1) * sy);
+  const rr = Math.min(bw, x1 * sx), bb = Math.min(bh, (App.page.h - y0) * sy);
+  vp.style.left = l + 'px'; vp.style.top = t + 'px';
+  vp.style.width = Math.max(4, rr - l) + 'px'; vp.style.height = Math.max(4, bb - t) + 'px';
+}
+function minimapNav(e) {
+  const box = $('#mmPage').getBoundingClientRect();
+  const x = (e.clientX - box.left) / box.width * App.page.w;
+  const y = App.page.h - (e.clientY - box.top) / box.height * App.page.h;
+  const r = stageRect();
+  const z = App.view.z * 96;
+  App.view.x = r.width / 2 - x * z;
+  App.view.y = r.height / 2 - (App.page.h - y) * z;
+  applyView();
+}
+
+/* ---------- arama ---------- */
+function searchAll(q) {
+  const out = [];
+  const needle = q.toLocaleLowerCase('tr');
+  const keep = App.page;
+  App.doc.pages.forEach((p, pi) => {
+    App.doc.buildTree(p);
+    for (const n of p.nodeMap.values()) {
+      const hay = [n.text(), n.el.getAttribute('NameU') || '', ...propRows(n).map((r) => r.value)].join(' \u0001 ');
+      const idx = hay.toLocaleLowerCase('tr').indexOf(needle);
+      if (idx >= 0) {
+        const txt = n.text().replace(/\s+/g, ' ').trim() || n.el.getAttribute('NameU') || ('Şekil ' + n.id);
+        out.push({ pi, id: n.id, label: txt.slice(0, 60), page: p.name });
+        if (out.length >= 60) return;
+      }
+    }
+  });
+  App.doc.buildTree(keep);
+  return out;
+}
+function runSearch() {
+  const q = $('#searchInput').value.trim();
+  const box = $('#searchResults');
+  if (!App.doc || q.length < 1) { box.innerHTML = ''; box.style.display = 'none'; return; }
+  const res = searchAll(q);
+  box.style.display = 'block';
+  box.innerHTML = res.length
+    ? res.map((r) => `<div class="sr" data-pi="${r.pi}" data-id="${esc(r.id)}"><b>${esc(r.label)}</b><span>${esc(r.page)}</span></div>`).join('')
+    : '<div class="sr none">Sonuç yok</div>';
+}
+function goToShape(pi, id) {
+  if (pi !== App.pageIdx) openPage(pi);
+  const n = App.page.nodeMap.get(id);
+  if (!n) return;
+  selectIds([id]);
+  const b = n.pageBBox();
+  const padX = Math.max((b.x1 - b.x0) * 1.5, 1.5), padY = Math.max((b.y1 - b.y0) * 1.5, 1.2);
+  fitPage({ x0: b.x0 - padX, x1: b.x1 + padX, y0: b.y0 - padY, y1: b.y1 + padY });
+  if (App.view.z > 2) zoomAt(2, stageRect().width / 2, stageRect().height / 2);
+}
+
+
+/* ---------- son açılan dosyalar (yalnızca tutamaç; içerik saklanmaz) ---------- */
+const Recent = {
+  db() {
+    return new Promise((res, rej) => {
+      let rq;
+      try { rq = indexedDB.open('visviewer', 1); } catch (e) { rej(e); return; }
+      rq.onupgradeneeded = () => rq.result.createObjectStore('recent', { keyPath: 'name' });
+      rq.onsuccess = () => res(rq.result);
+      rq.onerror = () => rej(rq.error);
+    });
+  },
+  async add(name, handle) {
+    try {
+      const db = await this.db();
+      await new Promise((res, rej) => { const tx = db.transaction('recent', 'readwrite'); tx.objectStore('recent').put({ name, handle, time: Date.now() }); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+      const all = await this.list();
+      for (const r of all.slice(6)) await new Promise((res) => { const tx = db.transaction('recent', 'readwrite'); tx.objectStore('recent').delete(r.name); tx.oncomplete = res; });
+    } catch (e) { /* kullanılamıyorsa sessizce geç */ }
+  },
+  async list() {
+    try {
+      const db = await this.db();
+      const all = await new Promise((res, rej) => { const rq = db.transaction('recent').objectStore('recent').getAll(); rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error); });
+      return all.sort((a, b) => b.time - a.time);
+    } catch (e) { return []; }
+  },
+  async remove(name) {
+    try { const db = await this.db(); await new Promise((res) => { const tx = db.transaction('recent', 'readwrite'); tx.objectStore('recent').delete(name); tx.oncomplete = res; }); } catch (e) { /* yok say */ }
+  },
+};
+
+async function renderRecent() {
+  const box = $('#recent');
+  if (!box) return;
+  const list = await Recent.list();
+  if (!list.length) { box.innerHTML = ''; return; }
+  box.innerHTML = '<div class="rec-title">Son açılanlar</div>' + list.map((r, i) => `<button class="rec" data-i="${i}" title="${esc(r.name)}"><span>${esc(r.name)}</span><i>${new Date(r.time).toLocaleDateString('tr-TR')}</i></button>`).join('');
+  box.onclick = async (e) => {
+    const b = e.target.closest('.rec');
+    if (!b) return;
+    const r = list[Number(b.dataset.i)];
+    try {
+      let perm = await r.handle.queryPermission({ mode: 'readwrite' });
+      if (perm !== 'granted') perm = await r.handle.requestPermission({ mode: 'readwrite' });
+      if (perm !== 'granted') { toast('Dosya erişim izni verilmedi.', 'warn'); return; }
+      await loadFile(await r.handle.getFile(), r.handle);
+    } catch (err) {
+      await Recent.remove(r.name);
+      toast('Dosya açılamadı (taşınmış veya silinmiş olabilir): ' + r.name, 'error');
+      renderRecent();
+    }
+  };
+}
+
+/* ---------- dosya işlemleri ---------- */
+const VSDX_TYPES = [{ description: 'Visio çizimi', accept: { 'application/vnd.ms-visio.drawing': ['.vsdx', '.vsdm'], 'application/octet-stream': ['.vsdx', '.vsdm'] } }];
+
+async function loadBuffer(buf, name, handle) {
+  try {
+    toast('Dosya açılıyor…');
+    const doc = await VDoc.load(buf, name);
+    App.doc = doc; App.fileHandle = handle || null;
+    if (handle) Recent.add(doc.name, handle);
+    History.clear();
+    App.dirty = false;
+    App.hiddenLayers = new Set();
+    $('#dropzone').style.display = 'none';
+    $('#app').classList.add('has-doc');
+    updateTitle();
+    renderPageList();
+    openPage(doc.pages.findIndex((p) => !p.background) >= 0 ? doc.pages.findIndex((p) => !p.background) : 0);
+    renderInspector();
+    const shapes = App.page.nodeMap.size;
+    toast(`${name} açıldı · ${doc.pages.length} sayfa`);
+    updateUndoButtons();
+  } catch (err) {
+    console.error(err);
+    toast('Açılamadı: ' + err.message, 'error');
+  }
+}
+async function loadFile(file, handle) {
+  const buf = await file.arrayBuffer();
+  await loadBuffer(buf, file.name, handle);
+}
+async function openFileDialog() {
+  if (window.showOpenFilePicker) {
+    try {
+      const [h] = await window.showOpenFilePicker({ types: VSDX_TYPES, multiple: false });
+      await loadFile(await h.getFile(), h);
+      return;
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+  $('#filePick').click();
+}
+
+function download(bytesOrStr, name, mime) {
+  const blob = new Blob([bytesOrStr], { type: mime || 'application/octet-stream' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+}
+
+async function saveFile(saveAs) {
+  if (!App.doc) return;
+  endTextEdit(true);
+  try {
+    const bytes = await App.doc.serialize();
+    if (!saveAs && App.fileHandle) {
+      try {
+        const w = await App.fileHandle.createWritable();
+        await w.write(bytes); await w.close();
+        App.dirty = false; updateTitle(); toast('Kaydedildi: ' + App.doc.name);
+        return;
+      } catch (e) { /* yazma izni yok → aşağıda indir/farklı kaydet */ }
+    }
+    if (window.showSaveFilePicker) {
+      try {
+        const h = await window.showSaveFilePicker({ suggestedName: App.doc.name, types: VSDX_TYPES });
+        const w = await h.createWritable();
+        await w.write(bytes); await w.close();
+        App.fileHandle = h; App.doc.name = h.name; App.dirty = false; updateTitle(); Recent.add(h.name, h); toast('Kaydedildi: ' + h.name);
+        return;
+      } catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    const base = App.doc.name.replace(/\.(vsdx|vsdm)$/i, '');
+    const name = /_duzenlendi$/.test(base) ? base + '.vsdx' : base + '_duzenlendi.vsdx';
+    download(bytes, name, 'application/vnd.ms-visio.drawing');
+    App.dirty = false; updateTitle();
+    toast('İndirilenler klasörüne kaydedildi: ' + name);
+  } catch (err) {
+    console.error(err);
+    toast('Kaydedilemedi: ' + err.message, 'error');
+  }
+}
+
+async function exportPNG() {
+  if (!App.doc) return;
+  const svg = pageToSVGString(App.doc, App.page, { scale: 192 });
+  App.doc.buildTree(App.page);
+  const img = new Image();
+  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
+  await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('Resim üretilemedi')); img.src = url; });
+  const c = document.createElement('canvas');
+  c.width = Math.round(App.page.w * 192); c.height = Math.round(App.page.h * 192);
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+  g.drawImage(img, 0, 0, c.width, c.height);
+  URL.revokeObjectURL(url);
+  c.toBlob((b) => download(b, App.doc.name.replace(/\.(vsdx|vsdm)$/i, '') + '_' + App.page.name + '.png', 'image/png'), 'image/png');
+}
+function exportSVG() {
+  if (!App.doc) return;
+  const svg = '<?xml version="1.0" encoding="UTF-8"?>\n' + pageToSVGString(App.doc, App.page, { scale: 96 });
+  App.doc.buildTree(App.page);
+  download(svg, App.doc.name.replace(/\.(vsdx|vsdm)$/i, '') + '_' + App.page.name + '.svg', 'image/svg+xml');
+}
+
+/* ---------- örnek / boş belge ---------- */
+const SAMPLE_CT = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/visio/document.xml" ContentType="application/vnd.ms-visio.drawing.main+xml"/><Override PartName="/visio/pages/pages.xml" ContentType="application/vnd.ms-visio.pages+xml"/><Override PartName="/visio/pages/page1.xml" ContentType="application/vnd.ms-visio.page+xml"/></Types>';
+const SAMPLE_ROOT_RELS = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.microsoft.com/visio/2010/relationships/document" Target="visio/document.xml"/></Relationships>';
+const SAMPLE_DOC = `<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<VisioDocument xmlns="${NS_V}" xmlns:r="${NS_R}" xml:space="preserve"><DocumentSettings TopPage="0" DefaultTextStyle="0" DefaultLineStyle="0" DefaultFillStyle="0"/><Colors/><FaceNames><FaceName ID="0" Name="Calibri" UnicodeRanges="-536870145 -1073732485 9 0" CharSets="1073742335 -65536" Panose="2 15 5 2 2 2 4 3 2 4" Flags="325"/></FaceNames><StyleSheets><StyleSheet ID="0" NameU="No Style" IsCustomName="1" IsCustomNameU="1"><Cell N="EnableLineProps" V="1"/><Cell N="EnableFillProps" V="1"/><Cell N="EnableTextProps" V="1"/><Cell N="LineWeight" V="0.01041666666666667"/><Cell N="LineColor" V="0"/><Cell N="LinePattern" V="1"/><Cell N="FillForegnd" V="1"/><Cell N="FillBkgnd" V="0"/><Cell N="FillPattern" V="1"/><Cell N="LeftMargin" V="0"/><Cell N="RightMargin" V="0"/><Cell N="TopMargin" V="0"/><Cell N="BottomMargin" V="0"/><Cell N="VerticalAlign" V="1"/><Section N="Character"><Row IX="0"><Cell N="Font" V="0"/><Cell N="Color" V="0"/><Cell N="Size" V="0.1666666666666667"/></Row></Section><Section N="Paragraph"><Row IX="0"><Cell N="HorzAlign" V="1"/></Row></Section></StyleSheet></StyleSheets></VisioDocument>`;
+const SAMPLE_DOC_RELS = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.microsoft.com/visio/2010/relationships/pages" Target="pages/pages.xml"/></Relationships>';
+const SAMPLE_PAGES = (w, h) => `<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<Pages xmlns="${NS_V}" xmlns:r="${NS_R}" xml:space="preserve"><Page ID="0" NameU="Sayfa-1" Name="Sayfa-1" ViewScale="-1" ViewCenterX="${w / 2}" ViewCenterY="${h / 2}"><PageSheet LineStyle="0" FillStyle="0" TextStyle="0"><Cell N="PageWidth" V="${w}"/><Cell N="PageHeight" V="${h}"/><Cell N="PageScale" V="1" U="IN_F"/><Cell N="DrawingScale" V="1" U="IN_F"/></PageSheet><Rel r:id="rId1"/></Page></Pages>`;
+const SAMPLE_PAGES_RELS = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.microsoft.com/visio/2010/relationships/page" Target="page1.xml"/></Relationships>';
+const SAMPLE_PAGE = `<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<PageContents xmlns="${NS_V}" xmlns:r="${NS_R}" xml:space="preserve"><Shapes/><Connects/></PageContents>`;
+
+async function blankPackage(w, h) {
+  const mk = (name, text) => ({ name, data: utf8enc.encode(text), modified: true });
+  const entries = [
+    mk('[Content_Types].xml', SAMPLE_CT), mk('_rels/.rels', SAMPLE_ROOT_RELS),
+    mk('visio/document.xml', SAMPLE_DOC), mk('visio/_rels/document.xml.rels', SAMPLE_DOC_RELS),
+    mk('visio/pages/pages.xml', SAMPLE_PAGES(w, h)), mk('visio/pages/_rels/pages.xml.rels', SAMPLE_PAGES_RELS),
+    mk('visio/pages/page1.xml', SAMPLE_PAGE),
+  ];
+  return (await writeZip(entries)).buffer;
+}
+
+async function openSample(blank) {
+  const buf = await blankPackage(11.69, 8.27);
+  await loadBuffer(buf, blank ? 'yeni-cizim.vsdx' : 'ornek-akis.vsdx', null);
+  if (blank) { App.dirty = true; updateTitle(); return; }
+  const doc = App.doc, page = App.page;
+  const mkS = (kind, x, y, w, h, text, fill, line) => {
+    const id = addShape(page, kind, x, y, w, h, text);
+    doc.buildTree(page);
+    const n = page.nodeMap.get(String(id));
+    if (fill) setFillColor(n, fill);
+    if (line) setLineColor(n, line);
+    return String(id);
+  };
+  const title = mkS('text', 5.85, 7.55, 6, 0.5, 'Örnek akış şeması', null, null);
+  doc.buildTree(page);
+  setCharCell(page.nodeMap.get(title), 'Size', fmtNum(20 / 72));
+  setCharStyleBit(page.nodeMap.get(title), 1, true);
+  const a = mkS('rounded', 3, 6.6, 2.2, 0.7, 'Başla', '#DDEBF7', '#2F5597');
+  const b = mkS('rect', 3, 5.2, 2.4, 0.8, 'Veriyi oku', '#FFFFFF', '#2F5597');
+  const c = mkS('diamond', 3, 3.5, 2.4, 1.4, 'Değer > 0 ?', '#FFF2CC', '#BF9000');
+  const d = mkS('rect', 6.6, 3.5, 2.4, 0.8, 'İşle', '#E2F0D9', '#548235');
+  const e = mkS('rect', 3, 1.7, 2.4, 0.8, 'Hata bildir', '#FBE5D6', '#C55A11');
+  const f = mkS('ellipse', 6.6, 1.7, 2.2, 0.9, 'Bitir', '#DDEBF7', '#2F5597');
+  const n1 = mkS('text', 4.5, 3.9, 0.9, 0.3, 'Evet', null, null);
+  const n2 = mkS('text', 2.35, 2.45, 0.9, 0.3, 'Hayır', null, null);
+  doc.buildTree(page);
+  const link = (x, y, el) => addConnector(doc, page, x, y, el);
+  link(a, b, false); link(b, c, false); link(c, d, false); link(c, e, false); link(d, f, true); link(e, f, false);
+  doc.buildTree(page);
+  const note = mkS('rect', 9.6, 6.2, 3.0, 1.5, 'Bu çizimi sürükleyip yeniden boyutlandırabilir, metinleri çift tıklayarak değiştirebilirsiniz.', '#F2F2F2', '#7F7F7F');
+  doc.buildTree(page);
+  setCharCell(page.nodeMap.get(note), 'Size', fmtNum(10 / 72));
+  setCell(page.nodeMap.get(note).el, 'Width', '3');
+  doc.markDirty(page);
+  App.dirty = false;
+  History.clear();
+  App.doc.buildTree(page);
+  refreshAll();
+  fitPage();
+  updateTitle();
+}
+
+/* ---------- yardım ---------- */
+const SHORTCUTS = [
+  ['V / H', 'Seç / El aracı'], ['R / O / D / T / C', 'Dikdörtgen / Elips / Eşkenar dörtgen / Metin / Bağlayıcı'],
+  ['Ctrl+O / Ctrl+S', 'Aç / Kaydet'], ['Ctrl+Shift+S', 'Farklı kaydet'],
+  ['Ctrl+Z / Ctrl+Y', 'Geri al / Yinele'], ['Ctrl+C / X / V / D', 'Kopyala / Kes / Yapıştır / Çoğalt'],
+  ['Delete', 'Sil'], ['Ok tuşları', 'İnce taşıma (Shift: 10×)'], ['F2 / Enter / çift tık', 'Metni düzenle'],
+  ['Ctrl+tıklama', 'Grup içindeki şekli seç'], ['Shift+tıklama', 'Seçime ekle/çıkar'],
+  ['Boşluk+sürükle / orta tuş', 'Kaydır'], ['Ctrl+tekerlek', 'Yakınlaştır'], ['F', 'Sayfaya sığdır'], ['+ / −', 'Yakınlaştır / uzaklaştır'], ['Ctrl+F', 'Şekil/metin ara'],
+];
+function showHelp() {
+  const d = $('#helpDialog');
+  $('#helpBody').innerHTML = `<table class="keys">${SHORTCUTS.map(([k, t]) => `<tr><td><kbd>${esc(k)}</kbd></td><td>${esc(t)}</td></tr>`).join('')}</table>
+  <p class="muted">Not: Eski ikili <b>.vsd</b> biçimi desteklenmez; Visio'da "Farklı kaydet → Visio Çizimi (*.vsdx)" yapın. Kaydedilen dosyada yalnızca değiştirdiğiniz şekillerin hücreleri güncellenir, geri kalan her şey olduğu gibi korunur.</p>`;
+  d.style.display = 'flex';
+}
+
+/* ---------- tema ---------- */
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem('vv-theme', t); } catch (e) { /* yok say */ }
+}
+
+/* ---------- başlatma ---------- */
+function bindUI() {
+  // simgeleri yerleştir
+  $$('[data-icon]').forEach((el) => { el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon)); });
+
+  $('#btnOpen').onclick = openFileDialog;
+  $('#btnOpen2').onclick = openFileDialog;
+  $('#btnSample').onclick = () => openSample(false);
+  $('#btnBlank').onclick = () => openSample(true);
+  $('#btnSave').onclick = () => saveFile(false);
+  $('#btnSaveAs').onclick = () => saveFile(true);
+  $('#btnUndo').onclick = () => doUndo(false);
+  $('#btnRedo').onclick = () => doUndo(true);
+  $('#btnPng').onclick = exportPNG;
+  $('#btnSvg').onclick = exportSVG;
+  $('#btnHelp').onclick = showHelp;
+  $('#helpClose').onclick = () => { $('#helpDialog').style.display = 'none'; };
+  $('#helpDialog').onclick = (e) => { if (e.target.id === 'helpDialog') e.target.style.display = 'none'; };
+  $('#btnTheme').onclick = () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+  $('#filePick').onchange = (e) => { const f = e.target.files[0]; if (f) loadFile(f, null); e.target.value = ''; };
+
+  $$('#toolbar [data-tool]').forEach((b) => { b.onclick = () => setTool(b.dataset.tool); });
+  $('#zoomIn').onclick = () => zoomCenter(1.25);
+  $('#zoomOut').onclick = () => zoomCenter(0.8);
+  $('#zoomFit').onclick = () => fitPage();
+  $('#zoomSel').onclick = () => { const n = selNodes(); if (!n.length) return fitPage(); let b = { x0: 1e9, y0: 1e9, x1: -1e9, y1: -1e9 }; for (const x of n) { const bb = x.pageBBox(); b = { x0: Math.min(b.x0, bb.x0), y0: Math.min(b.y0, bb.y0), x1: Math.max(b.x1, bb.x1), y1: Math.max(b.y1, bb.y1) }; } const px = Math.max((b.x1 - b.x0) * 0.4, 0.5), py = Math.max((b.y1 - b.y0) * 0.4, 0.5); fitPage({ x0: b.x0 - px, x1: b.x1 + px, y0: b.y0 - py, y1: b.y1 + py }); };
+  $('#chkSnap').onchange = (e) => { App.snap = e.target.checked; };
+  $('#chkGrid').onchange = (e) => { App.grid = e.target.checked; applyView(); };
+  $('#unitSel').onchange = (e) => { App.units = e.target.value; if (App.page) { setupFrame(); renderPage(); renderInspector(); updateStatus(); } };
+  $('#chkMini').onchange = (e) => { App.minimap = e.target.checked; $('#minimap').style.display = App.minimap && App.doc ? '' : 'none'; };
+
+  const stage = $('#stage');
+  stage.addEventListener('pointerdown', onStagePointerDown);
+  stage.addEventListener('pointermove', onStagePointerMove);
+  stage.addEventListener('pointerup', onStagePointerUp);
+  stage.addEventListener('pointercancel', onStagePointerUp);
+  stage.addEventListener('dblclick', onStageDblClick);
+  stage.addEventListener('wheel', onStageWheel, { passive: false });
+  stage.addEventListener('pointerleave', () => { if (App.hover) { App.hover = null; drawOverlay(); } });
+  window.addEventListener('keydown', onKey);
+  window.addEventListener('keyup', onKeyUp);
+  window.addEventListener('resize', () => { applyView(); });
+  window.addEventListener('beforeunload', (e) => { if (App.dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+  // sürükle-bırak ile açma
+  ['dragenter', 'dragover'].forEach((ev) => document.body.addEventListener(ev, (e) => { e.preventDefault(); $('#dropzone').classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((ev) => document.body.addEventListener(ev, (e) => { e.preventDefault(); $('#dropzone').classList.remove('over'); }));
+  document.body.addEventListener('drop', (e) => {
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFile(f, null);
+  });
+
+  // sol sekmeler
+  $$('#leftTabs button').forEach((b) => { b.onclick = () => { $$('#leftTabs button').forEach((x) => x.classList.toggle('active', x === b)); $$('.lpanel').forEach((p) => { p.style.display = p.id === b.dataset.panel ? '' : 'none'; }); }; });
+  $('#shapeTree').addEventListener('click', (e) => {
+    const t = e.target.closest('.tnode');
+    if (t) { selectIds([t.dataset.id]); }
+  });
+  $('#shapeTree').addEventListener('dblclick', (e) => { const t = e.target.closest('.tnode'); if (t) $('#zoomSel').click(); });
+  $('#shapeTree').addEventListener('mouseover', (e) => { const t = e.target.closest('.tnode'); App.hover = t ? t.dataset.id : null; drawOverlay(); });
+  $('#shapeTree').addEventListener('mouseleave', () => { App.hover = null; drawOverlay(); });
+  $('#layerList').addEventListener('change', (e) => {
+    const ix = parseInt(e.target.dataset.layer, 10);
+    if (Number.isFinite(ix)) { if (e.target.checked) App.hiddenLayers.delete(ix); else App.hiddenLayers.add(ix); renderPage(); }
+  });
+  $('#inspector').addEventListener('change', onInspectorChange);
+  $('#inspector').addEventListener('click', onInspectorClick);
+
+  // arama
+  let st = null;
+  $('#searchInput').addEventListener('input', () => { clearTimeout(st); st = setTimeout(runSearch, 160); });
+  $('#searchInput').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.target.value = ''; runSearch(); e.target.blur(); } else if (e.key === 'Enter') { const f = $('#searchResults .sr[data-id]'); if (f) f.click(); } });
+  $('#searchResults').addEventListener('click', (e) => {
+    const r = e.target.closest('.sr[data-id]');
+    if (r) { goToShape(parseInt(r.dataset.pi, 10), r.dataset.id); $('#searchResults').style.display = 'none'; }
+  });
+  document.addEventListener('click', (e) => { if (!e.target.closest('#searchBox')) $('#searchResults').style.display = 'none'; });
+
+  // mini harita
+  let mmDrag = false;
+  $('#mmBox').addEventListener('pointerdown', (e) => { mmDrag = true; e.currentTarget.setPointerCapture(e.pointerId); minimapNav(e); });
+  $('#mmBox').addEventListener('pointermove', (e) => { if (mmDrag) minimapNav(e); });
+  $('#mmBox').addEventListener('pointerup', () => { mmDrag = false; });
+
+  setTool('select');
+  updateTitle();
+  updateUndoButtons();
+}
+
+async function boot() {
+  let theme = 'light';
+  try { theme = localStorage.getItem('vv-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); } catch (e) { /* yok say */ }
+  setTheme(theme);
+  bindUI();
+  renderRecent();
+  if (window.VV_BOOT && window.VV_BOOT.b64) {
+    try {
+      const bin = atob(window.VV_BOOT.b64);
+      const u8 = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      await loadBuffer(u8.buffer, window.VV_BOOT.name || 'cizim.vsdx', null);
+    } catch (e) { toast('Dosya açılamadı: ' + e.message, 'error'); }
+  }
+}
+window.addEventListener('DOMContentLoaded', boot);
+
+</script>
+</body>
+</html>
